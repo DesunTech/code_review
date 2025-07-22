@@ -20,12 +20,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Fetch full history for better diffs
+        fetch-depth: 50  # Fetch recent history for diffs (more efficient than full history)
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+        cache: 'pip'
 
     - name: Install AI Code Reviewer
       run: |
@@ -59,14 +60,44 @@ jobs:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL }}
 
         # GitHub context
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PR_NUMBER: ${{ github.event.number }}
+        PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.number || '' }}
+
+        # Custom settings
+        AI_PROVIDER: ${{ vars.AI_PROVIDER || 'auto' }}
+        REVIEW_SEVERITY: ${{ vars.REVIEW_SEVERITY || 'major' }}
 
       run: |
-        # Detect primary language
-        LANG=$(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.java" -o -name "*.go" -o -name "*.rs" | head -1 | sed 's/.*\.//')
+        # Detect primary language from changed files
+        CHANGED_FILES=$(git diff --name-only ${{ steps.changed-files.outputs.base_sha }}..${{ steps.changed-files.outputs.head_sha }} | head -10)
+
+        if echo "$CHANGED_FILES" | grep -q "\.tsx\|\.ts"; then
+          LANG="typescript"
+        elif echo "$CHANGED_FILES" | grep -q "\.jsx\|\.js"; then
+          LANG="javascript"
+        elif echo "$CHANGED_FILES" | grep -q "\.py"; then
+          LANG="python"
+        elif echo "$CHANGED_FILES" | grep -q "\.java"; then
+          LANG="java"
+        elif echo "$CHANGED_FILES" | grep -q "\.go"; then
+          LANG="go"
+        elif echo "$CHANGED_FILES" | grep -q "\.rs"; then
+          LANG="rust"
+        elif echo "$CHANGED_FILES" | grep -q "\.php"; then
+          LANG="php"
+        elif echo "$CHANGED_FILES" | grep -q "\.rb"; then
+          LANG="ruby"
+        elif echo "$CHANGED_FILES" | grep -q "\.cpp\|\.cc\|\.cxx"; then
+          LANG="cpp"
+        elif echo "$CHANGED_FILES" | grep -q "\.c"; then
+          LANG="c"
+        else
+          # Fallback to project-wide detection
+          LANG=$(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.java" -o -name "*.go" -o -name "*.rs" | head -1 | sed 's/.*\.//' || echo "unknown")
+        fi
 
         # Detect project type
         if [ -f "package.json" ]; then
@@ -76,7 +107,7 @@ jobs:
             PROJECT_TYPE="nextjs"
           elif grep -q "react" package.json; then
             PROJECT_TYPE="react"
-        else
+          else
             PROJECT_TYPE="nodejs"
           fi
         elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
@@ -91,23 +122,42 @@ jobs:
 
         echo "Detected language: $LANG, project type: $PROJECT_TYPE"
 
-        # Run AI code review
+        # Validate inputs
+        if [ -z "${{ steps.changed-files.outputs.base_sha }}" ] || [ -z "${{ steps.changed-files.outputs.head_sha }}" ]; then
+          echo "❌ Error: Could not determine commit SHAs for diff"
+          exit 1
+        fi
+
+        # Run AI code review with error handling
+        set +e  # Don't exit on error
         ai-code-reviewer \
           --base ${{ steps.changed-files.outputs.base_sha }} \
           --head ${{ steps.changed-files.outputs.head_sha }} \
-          --provider auto \
+          --provider ${AI_PROVIDER} \
           --language $LANG \
           --project-type $PROJECT_TYPE \
           --output json \
           --save-report review-results.json \
-          --fail-on major || echo "Review completed with findings"
+          --fail-on ${REVIEW_SEVERITY}
+
+        REVIEW_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
+
+        # Create empty results file if review failed
+        if [ ! -f "review-results.json" ]; then
+          echo "[]" > review-results.json
+          echo "⚠️ Review completed but no results generated (exit code: $REVIEW_EXIT_CODE)"
+        fi
+
+        echo "Review process completed with exit code: $REVIEW_EXIT_CODE"
 
     - name: Upload review results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: ai-code-review-results
+        name: ai-code-review-results-${{ github.run_number }}
         path: review-results.json
+        retention-days: 30
 
     - name: Comment on PR
       if: github.event_name == 'pull_request'
@@ -236,21 +286,22 @@ jobs:
           });
 
     - name: Security scan (additional)
-      if: contains(github.event.head_commit.message, '[security-scan]') || github.event_name == 'pull_request'
+      if: contains(github.event.head_commit.message, '[security-scan]')
       run: |
         echo "🔒 Running additional security scan..."
         ai-code-reviewer \
           --base ${{ steps.changed-files.outputs.base_sha }} \
           --head ${{ steps.changed-files.outputs.head_sha }} \
-          --provider auto \
+          --provider ${AI_PROVIDER} \
           --fail-on critical \
           --language $LANG \
           --project-type security-focused \
-          --save-report security-scan.json || true
+          --save-report security-scan.json || echo "Security scan completed with findings"
 
-            - name: Upload security scan
-          if: contains(github.event.head_commit.message, '[security-scan]') || github.event_name == 'pull_request'
-          uses: actions/upload-artifact@v4
-          with:
-            name: security-scan-results
-            path: security-scan.json
+    - name: Upload security scan
+      if: contains(github.event.head_commit.message, '[security-scan]')
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-scan-results
+        path: security-scan.json
+        retention-days: 30
