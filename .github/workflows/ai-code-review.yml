@@ -99,7 +99,7 @@ jobs:
           --fail-on major || echo "Review completed with findings"
 
     - name: Upload review results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: ai-code-review-results
@@ -244,9 +244,9 @@ jobs:
           --project-type security-focused \
           --save-report security-scan.json || true
 
-    - name: Upload security scan
-      if: contains(github.event.head_commit.message, '[security-scan]') || github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v3
-      with:
-        name: security-scan-results
-        path: security-scan.json
+            - name: Upload security scan
+          if: contains(github.event.head_commit.message, '[security-scan]') || github.event_name == 'pull_request'
+          uses: actions/upload-artifact@v4
+          with:
+            name: security-scan-results
+            path: security-scan.json
