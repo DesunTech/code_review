@@ -118,7 +118,7 @@ class OpenRouterProvider(AIProvider):
         }
 
         data = {
-            "model": self.config.model or "openai/gpt-4-turbo-preview",
+            "model": self.config.model or "moonshotai/kimi-k2:free",
             "messages": [
                 {"role": "system", "content": "You are an expert code reviewer."},
                 {"role": "user", "content": prompt}

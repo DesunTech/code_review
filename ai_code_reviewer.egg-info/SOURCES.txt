@@ -1,0 +1,12 @@
+README.md
+setup.py
+ai_code_reviewer/__init__.py
+ai_code_reviewer/ai_code_reviewer.py
+ai_code_reviewer/config_manager.py
+ai_code_reviewer/multi_provider_integration.py
+ai_code_reviewer.egg-info/PKG-INFO
+ai_code_reviewer.egg-info/SOURCES.txt
+ai_code_reviewer.egg-info/dependency_links.txt
+ai_code_reviewer.egg-info/entry_points.txt
+ai_code_reviewer.egg-info/requires.txt
+ai_code_reviewer.egg-info/top_level.txt

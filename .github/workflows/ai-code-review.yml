@@ -72,7 +72,7 @@ jobs:
             PROJECT_TYPE="nextjs"
           elif grep -q "react" package.json; then
             PROJECT_TYPE="react"
-          else
+        else
             PROJECT_TYPE="nodejs"
           fi
         elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
@@ -119,8 +119,8 @@ jobs:
             if (reviewData.length === 0) {
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
                 body: '## 🤖 AI Code Review\n\n✅ **No issues found!** Your code looks good.'
               });
               return;

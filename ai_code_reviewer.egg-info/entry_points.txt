@@ -1,0 +1,3 @@
+[console_scripts]
+ai-code-reviewer = ai_code_reviewer:cli_main
+code-review = ai_code_reviewer:cli_main

@@ -10,7 +10,7 @@ import aiohttp
 from pathlib import Path
 
 # Import the multi-provider system
-from multi_provider_integration import MultiProviderReviewer, ProviderConfig
+from .multi_provider_integration import MultiProviderReviewer, ProviderConfig
 
 @dataclass
 class CodeReview:

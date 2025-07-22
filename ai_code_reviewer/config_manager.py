@@ -258,7 +258,7 @@ class ConfigManager:
                 "openrouter": {
                     "name": "openrouter",
                     "endpoint": "https://openrouter.ai/api/v1/chat/completions",
-                    "model": "openai/gpt-4-turbo-preview",
+                    "model": "qwen/qwen3-235b-a22b-07-25:free",
                     "max_tokens": 4000,
                     "temperature": 0.1
                 },

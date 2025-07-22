@@ -1,0 +1,149 @@
+Metadata-Version: 2.4
+Name: ai-code-reviewer
+Version: 1.0.0
+Summary: AI-powered code review tool with multi-provider support
+Home-page: https://github.com/your-username/ai-code-reviewer
+Author: Your Name
+Author-email: your.email@example.com
+Project-URL: Bug Reports, https://github.com/your-username/ai-code-reviewer/issues
+Project-URL: Source, https://github.com/your-username/ai-code-reviewer
+Project-URL: Documentation, https://github.com/your-username/ai-code-reviewer/blob/main/PROVIDER_SETUP.md
+Keywords: ai,code-review,static-analysis,claude,openai,github-actions,code-quality
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: Software Development :: Testing
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: Environment :: Console
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: aiohttp<4.0.0,>=3.8.0
+Requires-Dist: anthropic<1.0.0,>=0.25.0
+Requires-Dist: openai<2.0.0,>=1.0.0
+Requires-Dist: pydantic<3.0.0,>=2.0.0
+Requires-Dist: PyYAML<7.0,>=6.0
+Requires-Dist: jsonschema<5.0.0,>=4.0.0
+Requires-Dist: tenacity<9.0.0,>=8.0.0
+Requires-Dist: asyncio-throttle<2.0.0,>=1.0.0
+Requires-Dist: requests<3.0.0,>=2.25.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: flake8>=6.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Provides-Extra: ollama
+Requires-Dist: ollama-python>=0.1.0; extra == "ollama"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# AI Code Reviewer
+
+An AI-powered code review system that analyzes git diffs using multiple AI providers (Claude, OpenAI, etc.) to detect performance, security, style, logic, and best practice issues. Generates reports and integrates with CI/CD pipelines like GitHub Actions.
+
+## Features
+- 🤖 **Multi-Provider AI Support** with automatic detection and intelligent fallback
+  - Claude (Anthropic) - Premium quality
+  - OpenAI (GPT-4) - Fast and reliable
+  - OpenRouter - Cost-effective access to 20+ models
+  - Local models (Ollama) - Private and free
+- 🔄 **Intelligent Provider Selection** - Auto-detects available providers and falls back seamlessly
+- 📊 **Git Integration** for diff fetching and analysis
+- ⚙️ **Configurable Rules** - Severity thresholds, custom patterns, and language-specific rules
+- 📋 **Multiple Report Formats** - Markdown, JSON with detailed findings and suggestions
+- 🚀 **CI/CD Ready** - GitHub Actions, GitLab, Jenkins, pre-commit hooks
+- 📈 **Provider Benchmarking** - Compare accuracy and performance across providers
+- 🔧 **Extensible Architecture** - Custom analyzers, prompts, and integrations
+
+## Quick Start
+
+### 1. Setup (Virtual Environment)
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configure AI Provider
+Set up at least one AI provider:
+```bash
+# Option 1: Claude (Recommended)
+export ANTHROPIC_API_KEY="your-claude-key"
+
+# Option 2: OpenAI
+export OPENAI_API_KEY="your-openai-key"
+
+# Option 3: OpenRouter (Cost-effective)
+export OPENROUTER_API_KEY="your-openrouter-key"
+
+# Option 4: Local models (Free & Private)
+# Install Ollama: curl -fsSL https://ollama.ai/install.sh | sh
+# ollama pull codellama
+```
+
+### 3. Run Code Review
+```bash
+# Auto-detect providers and review changes
+python ai_code_reviewer.py --base main --head HEAD
+
+# Specify provider and get JSON report
+python ai_code_reviewer.py --provider claude --output json --save-report review.json
+
+# List available providers
+python ai_code_reviewer.py --list-providers
+```
+
+📖 **Detailed Setup**: See [PROVIDER_SETUP.md](PROVIDER_SETUP.md) for comprehensive provider configuration.
+
+## Project Structure
+- `ai_code_reviewer.py`: Core reviewer script with multi-provider support
+- `multi_provider_integration.py`: Multi-AI provider support and benchmarking
+- `config_manager.py`: Configuration loading and validation
+- `demo_providers.py`: Interactive demo of multi-provider system
+- `PROVIDER_SETUP.md`: Comprehensive provider setup guide
+- `code-review-config.txt`: Sample configuration
+- `setup-guide.md`: Detailed setup and usage guide
+
+## Requirements
+See `requirements.txt`.
+
+## Contributing
+Fork, create branch, add tests, submit PR. See setup-guide.md for more.
+
+## TODO List
+
+| Status     | Task                                                                 | Priority |
+|------------|----------------------------------------------------------------------|----------|
+| Completed | Create comprehensive documentation (README.md and setup-guide.md)    | High    |
+| Completed | Add .env file template and virtual env setup instructions            | High    |
+| Completed | Document and implement GitHub Action usage                           | High    |
+| Pending   | Add unit/integration tests for core components                       | High    |
+| Pending   | Implement caching for AI responses                                   | High    |
+| Pending   | Expand multi-provider support (e.g., add Google Gemini)              | Medium  |
+| Pending   | Add webhook integrations (e.g., Slack notifications)                 | Medium  |
+| Pending   | Improve error handling (e.g., retries, alerts)                       | Medium  |
+| Pending   | Optimize for large repos (e.g., split diffs)                         | Medium  |
+| Pending   | Create a web UI for manual reviews                                   | Low     |
+| Pending   | Add metrics dashboard for tracking findings                          | Low     |
+| Pending   | Document contribution guidelines in README.md                        | Low     |
+| Pending   | Audit for security (e.g., data leakage prevention)                   | Low     |
