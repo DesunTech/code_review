@@ -13,6 +13,8 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
+      statuses: write          # Add this for status checks
+      actions: read            # Add this for reading workflow info
 
     steps:
     - name: Checkout code
