@@ -32,3 +32,21 @@ See `requirements.txt`.
 
 ## Contributing
 Fork, create branch, add tests, submit PR. See setup-guide.md for more.
+
+## TODO List
+
+| Status     | Task                                                                 | Priority |
+|------------|----------------------------------------------------------------------|----------|
+| Completed | Create comprehensive documentation (README.md and setup-guide.md)    | High    |
+| Completed | Add .env file template and virtual env setup instructions            | High    |
+| Completed | Document and implement GitHub Action usage                           | High    |
+| Pending   | Add unit/integration tests for core components                       | High    |
+| Pending   | Implement caching for AI responses                                   | High    |
+| Pending   | Expand multi-provider support (e.g., add Google Gemini)              | Medium  |
+| Pending   | Add webhook integrations (e.g., Slack notifications)                 | Medium  |
+| Pending   | Improve error handling (e.g., retries, alerts)                       | Medium  |
+| Pending   | Optimize for large repos (e.g., split diffs)                         | Medium  |
+| Pending   | Create a web UI for manual reviews                                   | Low     |
+| Pending   | Add metrics dashboard for tracking findings                          | Low     |
+| Pending   | Document contribution guidelines in README.md                        | Low     |
+| Pending   | Audit for security (e.g., data leakage prevention)                   | Low     |
