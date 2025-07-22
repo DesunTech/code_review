@@ -1,0 +1,275 @@
+name: AI Code Review
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  ai-code-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+      statuses: write
+      actions: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 50
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install AI Code Reviewer
+      run: |
+        # Install dependencies
+        pip install aiohttp anthropic openai pydantic PyYAML jsonschema tenacity asyncio-throttle requests
+
+        # Install the code reviewer from GitHub source
+        pip install git+https://github.com/DesunTech/code_review.git
+
+    - name: Get changed files
+      id: changed-files
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          echo "base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
+          echo "head_sha=${HEAD_SHA}" >> $GITHUB_OUTPUT
+        else
+          BASE_SHA="${{ github.event.before }}"
+          HEAD_SHA="${{ github.sha }}"
+          echo "base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
+          echo "head_sha=${HEAD_SHA}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Run AI Code Review
+      id: code-review
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.number || '' }}
+        AI_PROVIDER: ${{ vars.AI_PROVIDER || 'auto' }}
+        REVIEW_SEVERITY: ${{ vars.REVIEW_SEVERITY || 'major' }}
+
+      run: |
+        # Detect primary language from changed files
+        CHANGED_FILES=$(git diff --name-only ${{ steps.changed-files.outputs.base_sha }}..${{ steps.changed-files.outputs.head_sha }} | head -10)
+
+        if echo "$CHANGED_FILES" | grep -q "\.tsx\|\.ts"; then
+          LANG="typescript"
+        elif echo "$CHANGED_FILES" | grep -q "\.jsx\|\.js"; then
+          LANG="javascript"
+        elif echo "$CHANGED_FILES" | grep -q "\.py"; then
+          LANG="python"
+        elif echo "$CHANGED_FILES" | grep -q "\.java"; then
+          LANG="java"
+        elif echo "$CHANGED_FILES" | grep -q "\.go"; then
+          LANG="go"
+        elif echo "$CHANGED_FILES" | grep -q "\.rs"; then
+          LANG="rust"
+        elif echo "$CHANGED_FILES" | grep -q "\.php"; then
+          LANG="php"
+        elif echo "$CHANGED_FILES" | grep -q "\.rb"; then
+          LANG="ruby"
+        elif echo "$CHANGED_FILES" | grep -q "\.cpp\|\.cc\|\.cxx"; then
+          LANG="cpp"
+        elif echo "$CHANGED_FILES" | grep -q "\.c"; then
+          LANG="c"
+        else
+          LANG=$(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.java" -o -name "*.go" -o -name "*.rs" | head -1 | sed 's/.*\.//' || echo "unknown")
+        fi
+
+        # Detect project type
+        if [ -f "package.json" ]; then
+          if grep -q "react-native" package.json; then
+            PROJECT_TYPE="react-native"
+          elif grep -q "next" package.json; then
+            PROJECT_TYPE="nextjs"
+          elif grep -q "react" package.json; then
+            PROJECT_TYPE="react"
+          else
+            PROJECT_TYPE="nodejs"
+          fi
+        elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+          PROJECT_TYPE="python"
+        elif [ -f "go.mod" ]; then
+          PROJECT_TYPE="go"
+        elif [ -f "Cargo.toml" ]; then
+          PROJECT_TYPE="rust"
+        else
+          PROJECT_TYPE="general"
+        fi
+
+        echo "Detected language: $LANG, project type: $PROJECT_TYPE"
+
+        # Validate inputs
+        if [ -z "${{ steps.changed-files.outputs.base_sha }}" ] || [ -z "${{ steps.changed-files.outputs.head_sha }}" ]; then
+          echo "❌ Error: Could not determine commit SHAs for diff"
+          exit 1
+        fi
+
+        # Run AI code review with error handling
+        set +e
+        ai-code-reviewer \
+          --base ${{ steps.changed-files.outputs.base_sha }} \
+          --head ${{ steps.changed-files.outputs.head_sha }} \
+          --provider ${AI_PROVIDER} \
+          --language $LANG \
+          --project-type $PROJECT_TYPE \
+          --output json \
+          --save-report review-results.json \
+          --fail-on ${REVIEW_SEVERITY}
+
+        REVIEW_EXIT_CODE=$?
+        set -e
+
+        if [ ! -f "review-results.json" ]; then
+          echo "[]" > review-results.json
+          echo "⚠️ Review completed but no results generated (exit code: $REVIEW_EXIT_CODE)"
+        fi
+
+        echo "Review process completed with exit code: $REVIEW_EXIT_CODE"
+
+    - name: Upload review results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ai-code-review-results-${{ github.run_number }}
+        path: review-results.json
+        retention-days: 30
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+
+          try {
+            const reviewData = JSON.parse(fs.readFileSync('review-results.json', 'utf8'));
+
+            if (reviewData.length === 0) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '## 🤖 AI Code Review\n\n✅ **No issues found!** Your code looks good.'
+              });
+              return;
+            }
+
+            const critical = reviewData.filter(r => r.severity === 'critical');
+            const major = reviewData.filter(r => r.severity === 'major');
+            const minor = reviewData.filter(r => r.severity === 'minor');
+            const info = reviewData.filter(r => r.severity === 'info');
+
+            let comment = '## 🤖 AI Code Review\n\n';
+            comment += '### 📊 Summary\n';
+            if (critical.length > 0) comment += `🔴 **Critical**: ${critical.length}\n`;
+            if (major.length > 0) comment += `🟠 **Major**: ${major.length}\n`;
+            if (minor.length > 0) comment += `🟡 **Minor**: ${minor.length}\n`;
+            if (info.length > 0) comment += `ℹ️ **Info**: ${info.length}\n`;
+
+            const topFindings = [...critical, ...major, ...minor, ...info].slice(0, 5);
+
+            if (topFindings.length > 0) {
+              comment += '\n### 🔍 Key Findings\n';
+
+              topFindings.forEach((finding, index) => {
+                const emoji = {
+                  'critical': '🔴',
+                  'major': '🟠',
+                  'minor': '🟡',
+                  'info': 'ℹ️'
+                }[finding.severity];
+
+                comment += `\n**${index + 1}. ${emoji} ${finding.category.toUpperCase()}**\n`;
+                comment += `📁 \`${finding.file}\` (lines ${finding.line_start}-${finding.line_end})\n`;
+                comment += `💬 ${finding.message}\n`;
+
+                if (finding.suggestion) {
+                  comment += `💡 **Suggestion**: ${finding.suggestion}\n`;
+                }
+
+                if (finding.fixed_code) {
+                  comment += `\n**✅ Fixed Code:**\n\`\`\`\n${finding.fixed_code}\n\`\`\`\n`;
+                }
+
+                if (finding.code_snippet) {
+                  comment += `\n**❌ Current Code:**\n\`\`\`\n${finding.code_snippet}\n\`\`\`\n`;
+                }
+              });
+            }
+
+            if (reviewData.length > 5) {
+              comment += `\n*... and ${reviewData.length - 5} more findings. Check the [full report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.*`;
+            }
+
+            comment += '\n\n---\n*Powered by AI Code Reviewer - Keeping your code clean and secure! 🚀*';
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+          } catch (error) {
+            console.log('No review results found or error reading file:', error);
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 🤖 AI Code Review\n\n⚠️ **Review completed but no results found.** This might be due to no changes detected or configuration issues.'
+            });
+          }
+
+    - name: Set status check
+      if: always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          let state = 'success';
+          let description = 'No issues found';
+
+          try {
+            const reviewData = JSON.parse(fs.readFileSync('review-results.json', 'utf8'));
+            const critical = reviewData.filter(r => r.severity === 'critical').length;
+            const major = reviewData.filter(r => r.severity === 'major').length;
+
+            if (critical > 0) {
+              state = 'failure';
+              description = `${critical} critical issue(s) found`;
+            } else if (major > 0) {
+              state = 'failure';
+              description = `${major} major issue(s) found`;
+            } else if (reviewData.length > 0) {
+              state = 'success';
+              description = `${reviewData.length} minor/info issue(s) found`;
+            }
+          } catch (error) {
+            state = 'error';
+            description = 'Could not complete code review';
+          }
+
+          await github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: context.sha,
+            state: state,
+            description: description,
+            context: 'AI Code Review'
+          });
