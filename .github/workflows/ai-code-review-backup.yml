@@ -13,14 +13,14 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
-      statuses: write
-      actions: read
+      statuses: write          # Add this for status checks
+      actions: read            # Add this for reading workflow info
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 50
+        fetch-depth: 50  # Fetch recent history for diffs (more efficient than full history)
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -30,18 +30,23 @@ jobs:
 
     - name: Install AI Code Reviewer
       run: |
+        # Install dependencies directly since package isn't on PyPI yet
         pip install aiohttp anthropic openai pydantic PyYAML jsonschema tenacity asyncio-throttle requests
+
+        # Install the code reviewer from current repo
         python -m pip install -e .
 
     - name: Get changed files
       id: changed-files
       run: |
         if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # For PR: compare against base branch
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           echo "base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
           echo "head_sha=${HEAD_SHA}" >> $GITHUB_OUTPUT
         else
+          # For push: compare against previous commit
           BASE_SHA="${{ github.event.before }}"
           HEAD_SHA="${{ github.sha }}"
           echo "base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
@@ -51,15 +56,22 @@ jobs:
     - name: Run AI Code Review
       id: code-review
       env:
+        # Primary providers (set in repository secrets)
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL }}
+
+        # GitHub context
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.number || '' }}
+
+        # Custom settings
         AI_PROVIDER: ${{ vars.AI_PROVIDER || 'auto' }}
         REVIEW_SEVERITY: ${{ vars.REVIEW_SEVERITY || 'major' }}
+
       run: |
+        # Detect primary language from changed files
         CHANGED_FILES=$(git diff --name-only ${{ steps.changed-files.outputs.base_sha }}..${{ steps.changed-files.outputs.head_sha }} | head -10)
 
         if echo "$CHANGED_FILES" | grep -q "\.tsx\|\.ts"; then
@@ -83,9 +95,11 @@ jobs:
         elif echo "$CHANGED_FILES" | grep -q "\.c"; then
           LANG="c"
         else
+          # Fallback to project-wide detection
           LANG=$(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.java" -o -name "*.go" -o -name "*.rs" | head -1 | sed 's/.*\.//' || echo "unknown")
         fi
 
+        # Detect project type
         if [ -f "package.json" ]; then
           if grep -q "react-native" package.json; then
             PROJECT_TYPE="react-native"
@@ -108,12 +122,14 @@ jobs:
 
         echo "Detected language: $LANG, project type: $PROJECT_TYPE"
 
+        # Validate inputs
         if [ -z "${{ steps.changed-files.outputs.base_sha }}" ] || [ -z "${{ steps.changed-files.outputs.head_sha }}" ]; then
           echo "❌ Error: Could not determine commit SHAs for diff"
           exit 1
         fi
 
-        set +e
+        # Run AI code review with error handling
+        set +e  # Don't exit on error
         ai-code-reviewer \
           --base ${{ steps.changed-files.outputs.base_sha }} \
           --head ${{ steps.changed-files.outputs.head_sha }} \
@@ -125,8 +141,9 @@ jobs:
           --fail-on ${REVIEW_SEVERITY}
 
         REVIEW_EXIT_CODE=$?
-        set -e
+        set -e  # Re-enable exit on error
 
+        # Create empty results file if review failed
         if [ ! -f "review-results.json" ]; then
           echo "[]" > review-results.json
           echo "⚠️ Review completed but no results generated (exit code: $REVIEW_EXIT_CODE)"
@@ -150,12 +167,14 @@ jobs:
           const fs = require('fs');
           const path = require('path');
 
+          // Get changed files from the PR
           const { data: files } = await github.rest.pulls.listFiles({
             owner: context.repo.owner,
             repo: context.repo.repo,
             pull_number: context.issue.number
           });
 
+          // Analyze changes
           let totalAdditions = 0;
           let totalDeletions = 0;
           let changesSummary = [];
@@ -178,6 +197,7 @@ jobs:
             });
           });
 
+          // Generate change summary for a file
           function generateChangeSummary(file) {
             const ext = path.extname(file.filename);
             const baseName = path.basename(file.filename);
@@ -186,6 +206,7 @@ jobs:
             if (file.status === 'removed') return `${getFileType(ext)} file deleted`;
             if (file.status === 'renamed') return `File renamed from ${file.previous_filename}`;
 
+            // For modified files, try to infer what changed
             if (ext === '.json' || ext === '.yml' || ext === '.yaml') {
               return `Configuration changes in ${baseName}`;
             } else if (ext === '.js' || ext === '.ts' || ext === '.jsx' || ext === '.tsx') {
@@ -201,29 +222,50 @@ jobs:
 
           function getFileType(ext) {
             const types = {
-              '.js': 'JavaScript', '.ts': 'TypeScript', '.jsx': 'React', '.tsx': 'React TypeScript',
-              '.py': 'Python', '.java': 'Java', '.go': 'Go', '.rs': 'Rust', '.php': 'PHP', '.rb': 'Ruby',
-              '.css': 'CSS', '.scss': 'SCSS', '.html': 'HTML', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML',
-              '.md': 'Markdown', '.txt': 'Text'
+              '.js': 'JavaScript',
+              '.ts': 'TypeScript',
+              '.jsx': 'React',
+              '.tsx': 'React TypeScript',
+              '.py': 'Python',
+              '.java': 'Java',
+              '.go': 'Go',
+              '.rs': 'Rust',
+              '.php': 'PHP',
+              '.rb': 'Ruby',
+              '.css': 'CSS',
+              '.scss': 'SCSS',
+              '.html': 'HTML',
+              '.json': 'JSON',
+              '.yml': 'YAML',
+              '.yaml': 'YAML',
+              '.md': 'Markdown',
+              '.txt': 'Text'
             };
             return types[ext] || 'File';
           }
 
+          // Estimate review effort
           function estimateReviewEffort(files, additions, deletions) {
             const totalChanges = additions + deletions;
             const fileCount = files.length;
 
-            let complexity = 1;
+            let complexity = 1; // Base complexity
+
+            // Adjust based on file count
             if (fileCount > 10) complexity += 2;
             else if (fileCount > 5) complexity += 1;
 
+            // Adjust based on change size
             if (totalChanges > 500) complexity += 3;
             else if (totalChanges > 100) complexity += 2;
             else if (totalChanges > 50) complexity += 1;
 
+            // Adjust based on file types
             const hasComplexFiles = files.some(f =>
-              f.filename.includes('config') || f.filename.includes('package.json') ||
-              f.filename.includes('.yml') || f.filename.includes('Dockerfile')
+              f.filename.includes('config') ||
+              f.filename.includes('package.json') ||
+              f.filename.includes('.yml') ||
+              f.filename.includes('Dockerfile')
             );
             if (hasComplexFiles) complexity += 1;
 
@@ -231,7 +273,9 @@ jobs:
             return `${complexity} (~${minutes} minute${minutes > 1 ? 's' : ''})`;
           }
 
+          // Generate contextual poem
           function generateChangePoem(files, totalChanges) {
+            const fileTypes = files.map(f => path.extname(f.filename)).filter((v, i, a) => a.indexOf(v) === i);
             const isStyleChange = files.some(f => f.filename.includes('config') || f.filename.includes('.css'));
             const isSecurityChange = files.some(f => f.filename.includes('auth') || f.filename.includes('security'));
             const isNewFeature = files.some(f => f.status === 'added' && f.additions > 20);
@@ -279,6 +323,7 @@ jobs:
             }
           }
 
+          // Create walkthrough text
           const walkthrough = files.length === 1
             ? `A single change was made to the ${files[0].filename} file, ${files[0].status === 'modified' ? 'modifying' : files[0].status === 'added' ? 'adding' : 'removing'} ${files[0].additions + files[0].deletions} line${(files[0].additions + files[0].deletions) !== 1 ? 's' : ''}. ${generateDetailedWalkthrough(files[0])}`
             : `${files.length} files were modified across the codebase, affecting ${totalAdditions + totalDeletions} lines of code. The changes span multiple areas including ${getChangeAreas(files).join(', ')}.`;
@@ -306,6 +351,7 @@ jobs:
             return Array.from(areas);
           }
 
+          // Build changes table
           const changesTable = changesSummary.map(change =>
             `| ${change.file} | ${change.summary} |`
           ).join('\\n');
@@ -313,6 +359,7 @@ jobs:
           const reviewEffort = estimateReviewEffort(files, totalAdditions, totalDeletions);
           const poem = generateChangePoem(files, totalAdditions + totalDeletions);
 
+          // Create the initial comment
           const comment = `## 🔍 AI Code Review Started
 
 ### Walkthrough
@@ -355,8 +402,10 @@ ${poem}
           const fs = require('fs');
 
           try {
+            // Read review results
             const reviewData = JSON.parse(fs.readFileSync('review-results.json', 'utf8'));
 
+            // Get PR files for additional context
             const { data: prFiles } = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -395,82 +444,116 @@ This change is safe to merge! ${totalChanges < 10 ? 'The small focused change ma
               return;
             }
 
+            // Group findings by category AND severity
             const categories = {};
             reviewData.forEach(finding => {
               if (!categories[finding.category]) {
-                categories[finding.category] = { critical: [], major: [], minor: [], info: [] };
+                categories[finding.category] = {
+                  critical: [],
+                  major: [],
+                  minor: [],
+                  info: []
+                };
               }
               categories[finding.category][finding.severity].push(finding);
             });
 
+            // Count totals
             const critical = reviewData.filter(r => r.severity === 'critical');
             const major = reviewData.filter(r => r.severity === 'major');
             const minor = reviewData.filter(r => r.severity === 'minor');
             const info = reviewData.filter(r => r.severity === 'info');
 
-            let comment = '## 🤖 AI Code Review Summary\\n\\n';
+            let comment = '## 🤖 AI Code Review Summary\n\n';
 
-            comment += '### 📊 Results\\n';
-            if (critical.length > 0) comment += `🔴 **${critical.length} critical issue${critical.length > 1 ? 's' : ''} found** - Immediate attention required\\n`;
-            if (major.length > 0) comment += `🟠 **${major.length} major issue${major.length > 1 ? 's' : ''} found** - Should be addressed before merge\\n`;
-            if (minor.length > 0) comment += `🟡 **${minor.length} minor issue${minor.length > 1 ? 's' : ''} found** - Consider addressing\\n`;
-            if (info.length > 0) comment += `ℹ️ **${info.length} suggestion${info.length > 1 ? 's' : ''} available** - Optional improvements\\n`;
+            // Results overview
+            comment += '### 📊 Results\n';
+            if (critical.length > 0) {
+              comment += `🔴 **${critical.length} critical issue${critical.length > 1 ? 's' : ''} found** - Immediate attention required\n`;
+            }
+            if (major.length > 0) {
+              comment += `🟠 **${major.length} major issue${major.length > 1 ? 's' : ''} found** - Should be addressed before merge\n`;
+            }
+            if (minor.length > 0) {
+              comment += `🟡 **${minor.length} minor issue${minor.length > 1 ? 's' : ''} found** - Consider addressing\n`;
+            }
+            if (info.length > 0) {
+              comment += `ℹ️ **${info.length} suggestion${info.length > 1 ? 's' : ''} available** - Optional improvements\n`;
+            }
 
-            comment += '\\n### 📋 Analysis Details\\n';
-            comment += `- **Files reviewed**: ${filesReviewed}\\n`;
-            comment += `- **Total changes**: +${prFiles.reduce((sum, f) => sum + f.additions, 0)}/-${prFiles.reduce((sum, f) => sum + f.deletions, 0)}\\n`;
-            comment += `- **Review confidence**: ${critical.length === 0 && major.length === 0 ? 'High' : critical.length > 0 ? 'Critical issues detected' : 'Medium'}\\n`;
+            comment += '\n### 📋 Analysis Details\n';
+            comment += `- **Files reviewed**: ${filesReviewed}\n`;
+            comment += `- **Total changes**: +${prFiles.reduce((sum, f) => sum + f.additions, 0)}/-${prFiles.reduce((sum, f) => sum + f.deletions, 0)}\n`;
+            comment += `- **Review confidence**: ${critical.length === 0 && major.length === 0 ? 'High' : critical.length > 0 ? 'Critical issues detected' : 'Medium'}\n`;
 
-            comment += '\\n### 🔍 Findings by Category\\n\\n';
+            // Findings by category (CodeRabbit style)
+            comment += '\n### 🔍 Findings by Category\n\n';
 
             const categoryEmojis = {
-              'security': '🔒', 'performance': '⚡', 'logic': '🧠', 'style': '🎨',
-              'best practices': '📏', 'maintainability': '🔧', 'testing': '🧪', 'documentation': '📖'
+              'security': '🔒',
+              'performance': '⚡',
+              'logic': '🧠',
+              'style': '🎨',
+              'best practices': '📏',
+              'maintainability': '🔧',
+              'testing': '🧪',
+              'documentation': '📖'
             };
 
-            Object.keys(categories).sort().forEach(categoryName => {
+            const sortedCategories = Object.keys(categories).sort();
+
+            sortedCategories.forEach(categoryName => {
               const categoryFindings = categories[categoryName];
               const totalInCategory = Object.values(categoryFindings).flat().length;
 
               if (totalInCategory === 0) return;
 
               const emoji = categoryEmojis[categoryName.toLowerCase()] || '📌';
-              comment += `#### ${emoji} ${categoryName.charAt(0).toUpperCase() + categoryName.slice(1)}\\n`;
+              comment += `#### ${emoji} ${categoryName.charAt(0).toUpperCase() + categoryName.slice(1)}\n`;
 
+              // Process each severity level
               ['critical', 'major', 'minor', 'info'].forEach(severity => {
                 categoryFindings[severity].forEach(finding => {
-                  const severityEmoji = { 'critical': '🔴', 'major': '🟠', 'minor': '🟡', 'info': 'ℹ️' }[severity];
-                  comment += `- ${severityEmoji} **${finding.file}** (lines ${finding.line_start}-${finding.line_end}): ${finding.message}\\n`;
+                  const severityEmoji = {
+                    'critical': '🔴',
+                    'major': '🟠',
+                    'minor': '🟡',
+                    'info': 'ℹ️'
+                  }[severity];
+
+                  comment += `- ${severityEmoji} **${finding.file}** (lines ${finding.line_start}-${finding.line_end}): ${finding.message}\n`;
 
                   if (finding.fixed_code) {
-                    comment += `  ✅ **Fixed**:\\n  \\\`\\\`\\\`\\n  ${finding.fixed_code}\\n  \\\`\\\`\\\`\\n`;
+                    comment += `  ✅ **Fixed**:\n  \`\`\`\n  ${finding.fixed_code}\n  \`\`\`\n`;
                   } else if (finding.suggestion) {
-                    comment += `  💡 **Suggestion**: ${finding.suggestion}\\n`;
+                    comment += `  💡 **Suggestion**: ${finding.suggestion}\n`;
                   }
+
                   if (finding.impact) {
-                    comment += `  ⚠️ **Impact**: ${finding.impact}\\n`;
+                    comment += `  ⚠️ **Impact**: ${finding.impact}\n`;
                   }
                 });
               });
-              comment += '\\n';
+              comment += '\n';
             });
 
-            comment += '### 🎯 Recommendation\\n';
+            // Recommendation section
+            comment += '### 🎯 Recommendation\n';
             if (critical.length > 0) {
-              comment += '❌ **Not recommended to merge** - Critical issues must be resolved first.\\n';
+              comment += '❌ **Not recommended to merge** - Critical issues must be resolved first.\n';
             } else if (major.length > 0) {
-              comment += '⚠️ **Review required** - Major issues should be addressed before merge.\\n';
+              comment += '⚠️ **Review required** - Major issues should be addressed before merge.\n';
             } else if (minor.length > 0) {
-              comment += '✅ **Safe to merge** - Minor issues can be addressed in follow-up commits.\\n';
+              comment += '✅ **Safe to merge** - Minor issues can be addressed in follow-up commits.\n';
             } else {
-              comment += '✅ **Ready to merge** - All checks passed!\\n';
+              comment += '✅ **Ready to merge** - All checks passed!\n';
             }
 
             if (reviewData.length > 8) {
-              comment += `\\n📄 **Full details**: Check the [complete report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for all ${reviewData.length} findings.\\n`;
+              comment += `\n📄 **Full details**: Check the [complete report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for all ${reviewData.length} findings.\n`;
             }
 
-            comment += '\\n---\\n*Powered by AI Code Reviewer - Keeping your code clean and secure! 🚀*';
+            comment += '\n---\n*Powered by AI Code Reviewer - Keeping your code clean and secure! 🚀*';
 
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -507,6 +590,7 @@ Check the [workflow logs](https://github.com/${context.repo.owner}/${context.rep
       with:
         script: |
           const fs = require('fs');
+
           let state = 'success';
           let description = 'No issues found';
 

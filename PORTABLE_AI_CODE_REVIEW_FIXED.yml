@@ -26,12 +26,11 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: 'pip'
 
     - name: Install AI Code Reviewer
       run: |
         pip install aiohttp anthropic openai pydantic PyYAML jsonschema tenacity asyncio-throttle requests
-        python -m pip install -e .
+        pip install git+https://github.com/DesunTech/code_review.git
 
     - name: Get changed files
       id: changed-files
@@ -83,7 +82,7 @@ jobs:
         elif echo "$CHANGED_FILES" | grep -q "\.c"; then
           LANG="c"
         else
-          LANG=$(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.java" -o -name "*.go" -o -name "*.rs" | head -1 | sed 's/.*\.//' || echo "unknown")
+          LANG="unknown"
         fi
 
         if [ -f "package.json" ]; then
@@ -237,74 +236,21 @@ jobs:
             const isNewFeature = files.some(f => f.status === 'added' && f.additions > 20);
 
             if (isSecurityChange) {
-              return [
-                "A shield was forged in code today,",
-                "To keep the hackers all at bay.",
-                "With fixes bright,",
-                "And logic tight,",
-                "Security wins the day! 🛡️✨"
-              ].join('\\n');
+              return "A shield was forged in code today,\\nTo keep the hackers all at bay.\\nWith fixes bright,\\nAnd logic tight,\\nSecurity wins the day! 🛡️✨";
             } else if (isNewFeature) {
-              return [
-                "New features bloom like flowers in spring,",
-                "Fresh code and functions that make hearts sing.",
-                "With logic clear,",
-                "And bugs nowhere near,",
-                "Innovation is a wonderful thing! 🌸✨"
-              ].join('\\n');
+              return "New features bloom like flowers in spring,\\nFresh code and functions that make hearts sing.\\nWith logic clear,\\nAnd bugs nowhere near,\\nInnovation is a wonderful thing! 🌸✨";
             } else if (isStyleChange) {
-              return [
-                "A comma hopped out, light as can be,",
-                "From the config file, now tidy and free.",
-                "The code is more neat,",
-                "With no extra beat—",
-                "This bunny approves, with a whiskery 'Whee!' 🐰✨"
-              ].join('\\n');
+              return "A comma hopped out, light as can be,\\nFrom the config file, now tidy and free.\\nThe code is more neat,\\nWith no extra beat—\\nThis bunny approves, with a whiskery 'Whee!' 🐰✨";
             } else if (totalChanges < 10) {
-              return [
-                "Small changes make the biggest waves,",
-                "Like gentle tweaks that improvement saves.",
-                "Though tiny in size,",
-                "They're mighty and wise,",
-                "Clean code is what every dev craves! ⚡✨"
-              ].join('\\n');
+              return "Small changes make the biggest waves,\\nLike gentle tweaks that improvement saves.\\nThough tiny in size,\\nThey're mighty and wise,\\nClean code is what every dev craves! ⚡✨";
             } else {
-              return [
-                "Code flows like a river, steady and true,",
-                "Changes ripple through, making things new.",
-                "With each commit's art,",
-                "You're playing your part,",
-                "In building something amazing for me and you! 🚀✨"
-              ].join('\\n');
+              return "Code flows like a river, steady and true,\\nChanges ripple through, making things new.\\nWith each commit's art,\\nYou're playing your part,\\nIn building something amazing for me and you! 🚀✨";
             }
           }
 
           const walkthrough = files.length === 1
-            ? `A single change was made to the ${files[0].filename} file, ${files[0].status === 'modified' ? 'modifying' : files[0].status === 'added' ? 'adding' : 'removing'} ${files[0].additions + files[0].deletions} line${(files[0].additions + files[0].deletions) !== 1 ? 's' : ''}. ${generateDetailedWalkthrough(files[0])}`
-            : `${files.length} files were modified across the codebase, affecting ${totalAdditions + totalDeletions} lines of code. The changes span multiple areas including ${getChangeAreas(files).join(', ')}.`;
-
-          function generateDetailedWalkthrough(file) {
-            if (file.filename.includes('config')) {
-              return 'This appears to be a configuration update that may affect build or runtime behavior.';
-            } else if (file.filename.includes('package.json')) {
-              return 'Dependencies or package metadata have been updated.';
-            } else if (file.filename.includes('README') || file.filename.includes('.md')) {
-              return 'Documentation has been updated to improve clarity or add new information.';
-            }
-            return 'Code modifications have been made to enhance functionality or fix issues.';
-          }
-
-          function getChangeAreas(files) {
-            const areas = new Set();
-            files.forEach(file => {
-              if (file.filename.includes('src/')) areas.add('source code');
-              if (file.filename.includes('test/') || file.filename.includes('spec/')) areas.add('tests');
-              if (file.filename.includes('config') || file.filename.includes('.json')) areas.add('configuration');
-              if (file.filename.includes('docs/') || file.filename.includes('.md')) areas.add('documentation');
-              if (file.filename.includes('.css') || file.filename.includes('.scss')) areas.add('styling');
-            });
-            return Array.from(areas);
-          }
+            ? `A single change was made to the ${files[0].filename} file, ${files[0].status === 'modified' ? 'modifying' : files[0].status === 'added' ? 'adding' : 'removing'} ${files[0].additions + files[0].deletions} line${(files[0].additions + files[0].deletions) !== 1 ? 's' : ''}.`
+            : `${files.length} files were modified across the codebase, affecting ${totalAdditions + totalDeletions} lines of code.`;
 
           const changesTable = changesSummary.map(change =>
             `| ${change.file} | ${change.summary} |`
@@ -488,10 +434,7 @@ This change is safe to merge! ${totalChanges < 10 ? 'The small focused change ma
               body: `## 🤖 AI Code Review Summary
 
 ### ⚠️ Analysis Error
-Review completed but results could not be processed. This might be due to:
-- No changes detected in supported file types
-- Configuration issues with the AI provider
-- Network connectivity problems
+Review completed but results could not be processed.
 
 ### 🔧 Troubleshooting
 Check the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for detailed error information.
@@ -538,24 +481,3 @@ Check the [workflow logs](https://github.com/${context.repo.owner}/${context.rep
             description: description,
             context: 'AI Code Review'
           });
-
-    - name: Security scan (additional)
-      if: contains(github.event.head_commit.message, '[security-scan]')
-      run: |
-        echo "🔒 Running additional security scan..."
-        ai-code-reviewer \
-          --base ${{ steps.changed-files.outputs.base_sha }} \
-          --head ${{ steps.changed-files.outputs.head_sha }} \
-          --provider ${AI_PROVIDER} \
-          --fail-on critical \
-          --language $LANG \
-          --project-type security-focused \
-          --save-report security-scan.json || echo "Security scan completed with findings"
-
-    - name: Upload security scan
-      if: contains(github.event.head_commit.message, '[security-scan]')
-      uses: actions/upload-artifact@v4
-      with:
-        name: security-scan-results
-        path: security-scan.json
-        retention-days: 30
