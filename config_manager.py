@@ -34,7 +34,7 @@ class CheckConfig(BaseModel):
     """Configuration for individual code checks."""
     name: str
     pattern: str
-    severity: str = Field(regex=r'^(critical|major|minor|info)$')
+    severity: str = Field(pattern=r'^(critical|major|minor|info)$')
     message: str
     enabled: bool = True
 
@@ -68,16 +68,16 @@ class ReviewCategoriesConfig(BaseModel):
 
 class ReviewConfig(BaseModel):
     """Main review configuration."""
-    fail_on_severity: str = Field(regex=r'^(critical|major|minor|info)$', default='major')
+    fail_on_severity: str = Field(pattern=r'^(critical|major|minor|info)$', default='major')
     max_findings: int = Field(ge=1, le=1000, default=50)
     categories: ReviewCategoriesConfig = Field(default_factory=ReviewCategoriesConfig)
 
 class NamingConventionConfig(BaseModel):
     """Naming convention configuration."""
-    functions: str = Field(regex=r'^(camelCase|snake_case|PascalCase)$', default='snake_case')
-    variables: str = Field(regex=r'^(camelCase|snake_case)$', default='snake_case')
-    constants: str = Field(regex=r'^(UPPER_SNAKE_CASE|camelCase)$', default='UPPER_SNAKE_CASE')
-    classes: str = Field(regex=r'^(PascalCase|snake_case)$', default='PascalCase')
+    functions: str = Field(pattern=r'^(camelCase|snake_case|PascalCase)$', default='snake_case')
+    variables: str = Field(pattern=r'^(camelCase|snake_case)$', default='snake_case')
+    constants: str = Field(pattern=r'^(UPPER_SNAKE_CASE|camelCase)$', default='UPPER_SNAKE_CASE')
+    classes: str = Field(pattern=r'^(PascalCase|snake_case)$', default='PascalCase')
 
 class FileStructureConfig(BaseModel):
     """File structure configuration."""
@@ -110,7 +110,7 @@ class PerformanceSettingsConfig(BaseModel):
     """Performance settings configuration."""
     max_file_size: int = Field(ge=50, le=10000, default=500)  # in KB
     skip_patterns: List[str] = Field(default_factory=lambda: [
-        "*.min.js", "*.generated.*", "vendor/*", 
+        "*.min.js", "*.generated.*", "vendor/*",
         "node_modules/*", "*.lock", "*.sum"
     ])
     max_diff_lines: int = Field(ge=100, le=50000, default=5000)
@@ -120,7 +120,7 @@ class ReportingConfig(BaseModel):
     """Reporting configuration."""
     include_code_snippets: bool = True
     max_snippet_length: int = Field(ge=50, le=1000, default=200)
-    group_by: str = Field(regex=r'^(file|severity|category)$', default='file')
+    group_by: str = Field(pattern=r'^(file|severity|category)$', default='file')
     formats: List[str] = Field(default_factory=lambda: ['markdown', 'json'])
 
 class CodeReviewConfig(BaseModel):
@@ -146,17 +146,17 @@ class CodeReviewConfig(BaseModel):
 
 class ConfigManager:
     """Enhanced configuration manager with validation and defaults."""
-    
+
     def __init__(self, config_path: Optional[str] = None):
         self.config_path = config_path or self._find_config_file()
         self.config: Optional[CodeReviewConfig] = None
         self.logger = self._setup_logging()
-        
+
     def _setup_logging(self) -> logging.Logger:
         """Set up logging for configuration management."""
         logger = logging.getLogger('config_manager')
         logger.setLevel(logging.INFO)
-        
+
         if not logger.handlers:
             handler = logging.StreamHandler()
             formatter = logging.Formatter(
@@ -164,9 +164,9 @@ class ConfigManager:
             )
             handler.setFormatter(formatter)
             logger.addHandler(handler)
-            
+
         return logger
-    
+
     def _find_config_file(self) -> Optional[str]:
         """Find configuration file in standard locations."""
         possible_paths = [
@@ -175,13 +175,13 @@ class ConfigManager:
             'config/ai-code-review.yml',
             os.path.expanduser('~/.ai-code-review.yml'),
         ]
-        
+
         for path in possible_paths:
             if os.path.exists(path):
                 return path
-                
+
         return None
-    
+
     def load_config(self) -> CodeReviewConfig:
         """Load and validate configuration."""
         try:
@@ -191,16 +191,16 @@ class ConfigManager:
             else:
                 self.logger.info("Using default configuration")
                 config_data = self._get_default_config()
-            
+
             # Add environment variable overrides
             config_data = self._apply_env_overrides(config_data)
-            
+
             # Validate and create config object
             self.config = CodeReviewConfig(**config_data)
             self.logger.info("Configuration loaded and validated successfully")
-            
+
             return self.config
-            
+
         except ValidationError as e:
             error_msg = f"Configuration validation failed: {e}"
             self.logger.error(error_msg)
@@ -209,7 +209,7 @@ class ConfigManager:
             error_msg = f"Failed to load configuration: {e}"
             self.logger.error(error_msg)
             raise ConfigurationError(error_msg) from e
-    
+
     def _load_config_file(self, path: str) -> Dict[str, Any]:
         """Load configuration from file."""
         try:
@@ -227,7 +227,7 @@ class ConfigManager:
                         return yaml.safe_load(content) or {}
         except Exception as e:
             raise ConfigurationError(f"Failed to load config file {path}: {e}")
-    
+
     def _get_default_config(self) -> Dict[str, Any]:
         """Get default configuration."""
         return {
@@ -287,7 +287,7 @@ class ConfigManager:
                 ]
             }
         }
-    
+
     def _apply_env_overrides(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Apply environment variable overrides."""
         # Provider API keys
@@ -298,7 +298,7 @@ class ConfigManager:
             'CODE_REVIEW_FAIL_ON': ['review', 'fail_on_severity'],
             'CODE_REVIEW_MAX_FINDINGS': ['review', 'max_findings'],
         }
-        
+
         for env_var, config_path in env_mappings.items():
             value = os.getenv(env_var)
             if value:
@@ -306,34 +306,34 @@ class ConfigManager:
                 current = config_data
                 for key in config_path[:-1]:
                     current = current.setdefault(key, {})
-                
+
                 # Convert to appropriate type
                 if config_path[-1] == 'max_findings':
                     value = int(value)
-                    
+
                 current[config_path[-1]] = value
-        
+
         return config_data
-    
+
     def save_config(self, path: Optional[str] = None) -> None:
         """Save current configuration to file."""
         if not self.config:
             raise ConfigurationError("No configuration to save")
-        
+
         save_path = path or self.config_path or '.ai-code-review.yml'
-        
+
         try:
             config_dict = self.config.dict()
             with open(save_path, 'w') as f:
                 yaml.dump(config_dict, f, default_flow_style=False, indent=2)
-            
+
             self.logger.info(f"Configuration saved to {save_path}")
-            
+
         except Exception as e:
             error_msg = f"Failed to save configuration: {e}"
             self.logger.error(error_msg)
             raise ConfigurationError(error_msg) from e
-    
+
     def validate_config(self, config_dict: Dict[str, Any]) -> bool:
         """Validate configuration dictionary."""
         try:
@@ -342,99 +342,99 @@ class ConfigManager:
         except ValidationError as e:
             self.logger.error(f"Configuration validation failed: {e}")
             return False
-    
+
     def get_provider_config(self, provider_name: str) -> Optional[ProviderConfiguration]:
         """Get configuration for specific provider."""
         if not self.config:
             self.load_config()
-        
+
         return self.config.providers.get(provider_name)
-    
+
     def add_custom_rule(self, name: str, pattern: str, severity: str, message: str) -> None:
         """Add a custom rule to the configuration."""
         if not self.config:
             self.load_config()
-        
+
         rule = CheckConfig(
             name=name,
             pattern=pattern,
             severity=severity,
             message=message
         )
-        
+
         self.config.custom_rules.append(rule)
         self.logger.info(f"Added custom rule: {name}")
 
 # Rate limiting and security utilities
 class RateLimiter:
     """Simple rate limiter for API calls."""
-    
+
     def __init__(self, max_requests: int = 10, time_window: int = 60):
         self.max_requests = max_requests
         self.time_window = time_window
         self.requests = []
-    
+
     async def acquire(self):
         """Acquire a rate limit slot."""
         import time
         now = time.time()
-        
+
         # Remove old requests
         self.requests = [req_time for req_time in self.requests if now - req_time < self.time_window]
-        
+
         if len(self.requests) >= self.max_requests:
             sleep_time = self.time_window - (now - self.requests[0])
             if sleep_time > 0:
                 await asyncio.sleep(sleep_time)
-        
+
         self.requests.append(now)
 
 class InputValidator:
     """Validate and sanitize input data."""
-    
+
     @staticmethod
     def validate_diff_content(diff_content: str) -> str:
         """Validate and sanitize diff content."""
         if not diff_content or not isinstance(diff_content, str):
             raise ValidationException("Invalid diff content")
-        
+
         # Basic sanitization
         if len(diff_content) > 100000:  # 100KB limit
             raise ValidationException("Diff content too large")
-        
+
         return diff_content.strip()
-    
+
     @staticmethod
     def validate_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Validate and sanitize context data."""
         if context is None:
             return {}
-        
+
         if not isinstance(context, dict):
             raise ValidationException("Context must be a dictionary")
-        
+
         # Sanitize known fields
         allowed_fields = {'language', 'project_type', 'branch', 'author'}
         sanitized = {}
-        
+
         for key, value in context.items():
             if key in allowed_fields and isinstance(value, str):
                 sanitized[key] = value[:100]  # Limit string length
-        
+
         return sanitized
 
 # Example usage and testing
 if __name__ == "__main__":
     # Test configuration loading and validation
     config_manager = ConfigManager()
-    
+
     try:
         config = config_manager.load_config()
         print("✓ Configuration loaded successfully")
         print(f"Fail on severity: {config.review.fail_on_severity}")
         print(f"Max findings: {config.review.max_findings}")
         print(f"Available providers: {list(config.providers.keys())}")
-        
+
     except ConfigurationError as e:
         print(f"✗ Configuration error: {e}")
     except Exception as e:
