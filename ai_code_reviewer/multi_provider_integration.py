@@ -319,20 +319,62 @@ class MultiProviderReviewer:
 
     def _create_prompt(self, diff_content: str, context: Dict[str, Any] = None) -> str:
         """Create review prompt."""
-        return f"""You are an expert code reviewer. Review this code diff and provide findings in JSON format.
+        language = context.get('language', 'unknown') if context else 'unknown'
+        project_type = context.get('project_type', 'general') if context else 'general'
 
-Focus on:
-- Performance issues
-- Security vulnerabilities
-- Logic errors
-- Best practices
+        return f"""You are an expert code reviewer. Review this code diff and provide detailed findings with actionable fixes in JSON format.
 
-Code diff:
+Context:
+- Language: {language}
+- Project Type: {project_type}
+
+Focus Areas:
+- 🔒 Security vulnerabilities (SQL injection, XSS, hardcoded secrets, etc.)
+- ⚡ Performance issues (inefficient algorithms, memory leaks, N+1 queries)
+- 🐛 Logic errors and potential bugs
+- 📏 Code quality and best practices
+- 🏗️ Architecture and design patterns
+- 🧪 Testing and error handling
+- 📖 Documentation and maintainability
+
+Code diff to review:
 ```diff
 {diff_content}
 ```
 
-Respond with a JSON array of findings. Each finding must have: severity, category, file, line_start, line_end, message, and optional suggestion."""
+**IMPORTANT**: For each finding, provide both a description AND a concrete code fix.
+
+Respond with a JSON array of findings. Each finding MUST have these fields:
+- "severity": "critical" | "major" | "minor" | "info"
+- "category": specific category (e.g., "security", "performance", "logic", "best practices")
+- "file": filename from the diff
+- "line_start": starting line number
+- "line_end": ending line number
+- "message": clear description of the issue
+- "suggestion": actionable fix suggestion
+- "fixed_code": the corrected code snippet (when applicable)
+- "impact": potential impact if not fixed
+- "confidence": your confidence level (high/medium/low)
+
+Example format:
+```json
+[
+  {{
+    "severity": "critical",
+    "category": "security",
+    "file": "auth.js",
+    "line_start": 23,
+    "line_end": 23,
+    "message": "SQL injection vulnerability detected",
+    "suggestion": "Use parameterized queries instead of string concatenation",
+    "fixed_code": "const query = 'SELECT * FROM users WHERE id = ?';\\ndb.query(query, [userId]);",
+    "impact": "Attackers could access or modify database data",
+    "confidence": "high"
+  }}
+]
+```
+
+Provide thorough, actionable reviews that help developers improve their code quality and security."""
 
 class ProviderBenchmark:
     """Benchmark different AI providers for code review quality."""

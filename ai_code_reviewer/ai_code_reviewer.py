@@ -14,7 +14,7 @@ from .multi_provider_integration import MultiProviderReviewer, ProviderConfig
 
 @dataclass
 class CodeReview:
-    """Represents a code review with findings and suggestions."""
+    """Represents a code review with findings, suggestions, and fixes."""
     severity: str  # 'critical', 'major', 'minor', 'info'
     category: str  # 'performance', 'security', 'style', 'logic', 'best-practice'
     file: str
@@ -23,6 +23,10 @@ class CodeReview:
     message: str
     suggestion: Optional[str] = None
     code_snippet: Optional[str] = None
+    # Enhanced fields for better fixes
+    fixed_code: Optional[str] = None  # The corrected code snippet
+    impact: Optional[str] = None      # Potential impact if not fixed
+    confidence: Optional[str] = None  # AI confidence level (high/medium/low)
 
 class AICodeReviewer:
     """AI-powered code review system with multi-provider support."""
@@ -130,7 +134,11 @@ class AICodeReviewer:
                     line_end=finding['line_end'],
                     message=finding['message'],
                     suggestion=finding.get('suggestion'),
-                    code_snippet=finding.get('code_snippet')
+                    code_snippet=finding.get('code_snippet'),
+                    # Enhanced fields
+                    fixed_code=finding.get('fixed_code'),
+                    impact=finding.get('impact'),
+                    confidence=finding.get('confidence')
                 )
                 reviews.append(review)
 
@@ -202,42 +210,73 @@ class CodeQualityEnforcer:
             raise ValueError(f"Unsupported format: {output_format}")
 
     def _generate_markdown_report(self, reviews: List[CodeReview]) -> str:
-        """Generate a markdown report."""
+        """Generate an enhanced markdown report with fixes."""
         if not reviews:
-            return "# Code Review Report\n\n✅ No issues found!"
+            return "# 🤖 AI Code Review Report\n\n✅ **No issues found!** Your code looks great! 🎉"
 
-        report = ["# Code Review Report", f"\nGenerated at: {datetime.now().isoformat()}",
-                  f"\nTotal findings: {len(reviews)}\n"]
-
-        # Summary by severity
-        severity_counts = {}
+        # Count issues by severity
+        severity_counts = {'critical': 0, 'major': 0, 'minor': 0, 'info': 0}
         for review in reviews:
             severity_counts[review.severity] = severity_counts.get(review.severity, 0) + 1
 
-        report.append("## Summary")
-        for severity in ['critical', 'major', 'minor', 'info']:
-            count = severity_counts.get(severity, 0)
-            if count > 0:
-                emoji = {'critical': '🔴', 'major': '🟠', 'minor': '🟡', 'info': 'ℹ️'}[severity]
-                report.append(f"- {emoji} {severity.capitalize()}: {count}")
+        report = [
+            "# 🤖 AI Code Review Report",
+            f"\n📅 **Generated at:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"📊 **Total findings:** {len(reviews)}",
+            "",
+            "## 📈 Summary",
+            f"- 🔴 **Critical:** {severity_counts['critical']} issues",
+            f"- 🟠 **Major:** {severity_counts['major']} issues",
+            f"- 🟡 **Minor:** {severity_counts['minor']} issues",
+            f"- ℹ️ **Info:** {severity_counts['info']} issues",
+            ""
+        ]
 
         # Detailed findings
-        report.append("\n## Detailed Findings\n")
+        report.append("## 🔍 Detailed Findings")
+        report.append("")
 
         for i, review in enumerate(reviews, 1):
             emoji = {'critical': '🔴', 'major': '🟠', 'minor': '🟡', 'info': 'ℹ️'}[review.severity]
+            confidence_emoji = {'high': '🎯', 'medium': '🤔', 'low': '❓'}.get(review.confidence, '🤔')
 
-            report.append(f"### {i}. {emoji} [{review.severity.upper()}] {review.category}")
-            report.append(f"**File:** `{review.file}` (Lines {review.line_start}-{review.line_end})")
-            report.append(f"\n{review.message}")
+            report.append(f"### {i}. {emoji} **{review.severity.upper()}** - {review.category}")
+            report.append(f"📄 **File:** `{review.file}` (Lines {review.line_start}-{review.line_end}) {confidence_emoji}")
+            report.append("")
+            report.append(f"💬 **Issue:** {review.message}")
 
-            if review.code_snippet:
-                report.append(f"\n**Code:**\n```\n{review.code_snippet}\n```")
+            if review.impact:
+                report.append(f"⚠️ **Impact:** {review.impact}")
 
             if review.suggestion:
-                report.append(f"\n**Suggestion:** {review.suggestion}")
+                report.append(f"💡 **Suggestion:** {review.suggestion}")
 
-            report.append("")
+            if review.code_snippet:
+                report.append(f"\n**❌ Current Code:**")
+                report.append(f"```")
+                report.append(f"{review.code_snippet}")
+                report.append(f"```")
+
+            if review.fixed_code:
+                report.append(f"\n**✅ Fixed Code:**")
+                report.append(f"```")
+                report.append(f"{review.fixed_code}")
+                report.append(f"```")
+
+            if review.confidence:
+                report.append(f"\n🎯 **Confidence Level:** {review.confidence}")
+
+            report.append("\n---\n")
+
+        # Add helpful footer
+        report.append("## 🚀 Next Steps")
+        report.append("")
+        report.append("1. Review each finding above")
+        report.append("2. Apply the suggested fixes (✅ **Fixed Code** sections)")
+        report.append("3. Test your changes thoroughly")
+        report.append("4. Re-run the AI code review to verify fixes")
+        report.append("")
+        report.append("💡 **Tip:** Focus on 🔴 Critical and 🟠 Major issues first!")
 
         return "\n".join(report)
 
