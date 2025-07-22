@@ -294,29 +294,6 @@ class MultiProviderReviewer:
             except Exception as e:
                 print(f"✗ Failed to load provider {provider_name}: {e}")
 
-    async def review_code(self, diff_content: str, context: Dict[str, Any] = None) -> str:
-        """Review code using available providers with fallback support."""
-        prompt = self._create_prompt(diff_content, context)
-
-        # Try primary provider first
-        if self.primary_provider in self.providers:
-            try:
-                print(f"Using primary provider: {self.primary_provider}")
-                return await self.providers[self.primary_provider].complete(prompt)
-            except Exception as e:
-                print(f"Primary provider failed: {e}")
-
-        # Try fallback providers
-        for fallback in self.fallback_providers:
-            if fallback in self.providers:
-                try:
-                    print(f"Using fallback provider: {fallback}")
-                    return await self.providers[fallback].complete(prompt)
-                except Exception as e:
-                    print(f"Fallback provider {fallback} failed: {e}")
-
-        raise ProviderException("All AI providers failed")
-
     def _create_prompt(self, diff_content: str, context: Dict[str, Any] = None) -> str:
         """Create review prompt."""
         language = context.get('language', 'unknown') if context else 'unknown'
@@ -375,6 +352,227 @@ Example format:
 ```
 
 Provide thorough, actionable reviews that help developers improve their code quality and security."""
+
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count for text (rough approximation)."""
+        # Rough token estimation: ~1 token per 4 characters
+        return len(text) // 4
+
+    def _filter_important_files(self, diff_content: str, max_files: int = 20) -> str:
+        """Filter diff to include only the most important files for review."""
+        lines = diff_content.split('\n')
+        files = {}
+        current_file = None
+        current_file_lines = []
+
+        # Priority file patterns (higher priority files to review)
+        high_priority_patterns = [
+            # Security-critical files
+            'auth', 'login', 'password', 'token', 'session', 'security',
+            # Configuration files
+            '.env', 'config', 'settings', '.yml', '.yaml', '.json',
+            # Core business logic
+            'service', 'controller', 'model', 'handler', 'api',
+            # Database and data access
+            'db', 'database', 'migration', 'schema', 'repository',
+            # Critical infrastructure
+            'main', 'index', 'app', 'server', 'router'
+        ]
+
+        low_priority_patterns = [
+            # Tests (important but can be reviewed separately)
+            'test', 'spec', '__test__',
+            # Documentation
+            'readme', '.md', 'doc',
+            # Build and tooling
+            'package-lock', 'yarn.lock', 'build', 'dist',
+            # Assets
+            'assets', 'static', 'public', 'images'
+        ]
+
+        for line in lines:
+            if line.startswith('diff --git'):
+                # Save previous file
+                if current_file and current_file_lines:
+                    files[current_file] = {
+                        'lines': current_file_lines[:],
+                        'priority': 0,
+                        'size': len('\n'.join(current_file_lines))
+                    }
+
+                # Start new file
+                current_file = line.split(' b/')[-1] if ' b/' in line else line
+                current_file_lines = [line]
+
+                # Calculate priority
+                filename_lower = current_file.lower()
+                priority = 1  # default priority
+
+                for pattern in high_priority_patterns:
+                    if pattern in filename_lower:
+                        priority += 3
+                        break
+
+                for pattern in low_priority_patterns:
+                    if pattern in filename_lower:
+                        priority -= 2
+                        break
+
+                if current_file in files:
+                    files[current_file]['priority'] = priority
+
+            else:
+                if current_file_lines is not None:
+                    current_file_lines.append(line)
+
+        # Save last file
+        if current_file and current_file_lines:
+            files[current_file] = {
+                'lines': current_file_lines,
+                'priority': 1,
+                'size': len('\n'.join(current_file_lines))
+            }
+
+        # Sort files by priority and size
+        sorted_files = sorted(
+            files.items(),
+            key=lambda x: (x[1]['priority'], -x[1]['size']),
+            reverse=True
+        )
+
+        # Take top files
+        selected_files = sorted_files[:max_files]
+        total_files = len(files)
+
+        if len(selected_files) < total_files:
+            print(f"📋 Filtered to {len(selected_files)} most important files (out of {total_files} total)")
+
+        # Reconstruct diff with selected files
+        filtered_lines = []
+        for file_path, file_data in selected_files:
+            filtered_lines.extend(file_data['lines'])
+
+        return '\n'.join(filtered_lines)
+
+    def _chunk_diff(self, diff_content: str, max_chunk_tokens: int = 80000) -> List[str]:
+        """Split large diff into smaller chunks that fit within token limits."""
+        estimated_tokens = self._estimate_tokens(diff_content)
+
+        if estimated_tokens <= max_chunk_tokens:
+            return [diff_content]
+
+        chunks = []
+        lines = diff_content.split('\n')
+        current_chunk = []
+        current_tokens = 0
+
+        # Track file boundaries to avoid splitting files awkwardly
+        current_file = None
+
+        for line in lines:
+            line_tokens = self._estimate_tokens(line)
+
+            # Detect new file in diff
+            if line.startswith('diff --git') or line.startswith('+++') or line.startswith('---'):
+                # If we have a substantial chunk and starting a new file, finish current chunk
+                if current_tokens > max_chunk_tokens * 0.7 and current_chunk:
+                    chunks.append('\n'.join(current_chunk))
+                    current_chunk = []
+                    current_tokens = 0
+                current_file = line
+
+            # If adding this line would exceed limit, finish current chunk
+            if current_tokens + line_tokens > max_chunk_tokens and current_chunk:
+                chunks.append('\n'.join(current_chunk))
+                current_chunk = []
+                current_tokens = 0
+
+            current_chunk.append(line)
+            current_tokens += line_tokens
+
+        # Add final chunk
+        if current_chunk:
+            chunks.append('\n'.join(current_chunk))
+
+        print(f"📊 Split diff into {len(chunks)} chunks (estimated {estimated_tokens} total tokens)")
+        return chunks
+
+    async def review_code(self, diff_content: str, context: Dict[str, Any] = None) -> str:
+        """Review code using available providers with fallback support and diff chunking."""
+        # Check if diff needs to be processed
+        estimated_tokens = self._estimate_tokens(diff_content)
+        max_safe_tokens = 80000  # Leave room for prompt overhead
+        extremely_large_tokens = 200000  # Threshold for file filtering
+
+        print(f"📏 Analyzing diff: {estimated_tokens} estimated tokens")
+
+        # For extremely large diffs, filter to most important files first
+        if estimated_tokens > extremely_large_tokens:
+            print(f"🔍 Extremely large diff detected, filtering to most critical files...")
+            diff_content = self._filter_important_files(diff_content, max_files=15)
+            estimated_tokens = self._estimate_tokens(diff_content)
+            print(f"📏 After filtering: {estimated_tokens} estimated tokens")
+
+        if estimated_tokens > max_safe_tokens:
+            print(f"📏 Large diff detected, chunking for analysis...")
+            chunks = self._chunk_diff(diff_content, max_safe_tokens)
+
+            all_findings = []
+            for i, chunk in enumerate(chunks, 1):
+                print(f"🔍 Analyzing chunk {i}/{len(chunks)}...")
+                try:
+                    chunk_result = await self._review_single_chunk(chunk, context)
+                    chunk_findings = self._parse_chunk_result(chunk_result)
+                    all_findings.extend(chunk_findings)
+                except Exception as e:
+                    print(f"⚠️ Failed to analyze chunk {i}: {e}")
+                    continue
+
+            print(f"✅ Analysis complete: {len(all_findings)} total findings from {len(chunks)} chunks")
+            # Combine results into final JSON
+            return json.dumps(all_findings, indent=2)
+        else:
+            # Single review for small diffs
+            return await self._review_single_chunk(diff_content, context)
+
+    async def _review_single_chunk(self, diff_content: str, context: Dict[str, Any] = None) -> str:
+        """Review a single chunk of diff content."""
+        prompt = self._create_prompt(diff_content, context)
+
+        # Try primary provider first
+        if self.primary_provider in self.providers:
+            try:
+                print(f"Using primary provider: {self.primary_provider}")
+                return await self.providers[self.primary_provider].complete(prompt)
+            except Exception as e:
+                print(f"Primary provider failed: {e}")
+
+        # Try fallback providers
+        for fallback in self.fallback_providers:
+            if fallback in self.providers:
+                try:
+                    print(f"Using fallback provider: {fallback}")
+                    return await self.providers[fallback].complete(prompt)
+                except Exception as e:
+                    print(f"Fallback provider {fallback} failed: {e}")
+
+        raise ProviderException("All AI providers failed")
+
+    def _parse_chunk_result(self, response: str) -> List[Dict]:
+        """Parse a chunk response into findings list."""
+        try:
+            # Clean response
+            response = response.strip()
+            if response.startswith('```json'):
+                response = response[7:]
+            if response.endswith('```'):
+                response = response[:-3]
+
+            findings = json.loads(response.strip())
+            return findings if isinstance(findings, list) else []
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse chunk response: {e}")
+            return []
 
 class ProviderBenchmark:
     """Benchmark different AI providers for code review quality."""
