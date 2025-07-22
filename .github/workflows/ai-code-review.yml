@@ -27,9 +27,11 @@ jobs:
 
     - name: Install AI Code Reviewer
       run: |
-        pip install ai-code-reviewer
-        # Alternative: Install from source
-        # pip install git+https://github.com/DesunTech/code_review.git
+        # Install dependencies directly since package isn't on PyPI yet
+        pip install aiohttp anthropic openai pydantic PyYAML jsonschema tenacity asyncio-throttle requests
+
+        # Install the code reviewer from current repo
+        python -m pip install -e .
 
     - name: Get changed files
       id: changed-files
