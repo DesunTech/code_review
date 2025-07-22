@@ -270,32 +270,7 @@ jobs:
           const reviewEffort = estimateReviewEffort(files, totalAdditions, totalDeletions);
           const poem = generateChangePoem(files, totalAdditions + totalDeletions);
 
-          const comment = `## 🔍 AI Code Review Started
-
-### Walkthrough
-${walkthrough}
-
-### Changes
-| File | Change Summary |
-|------|----------------|
-${changesTable}
-
-### Estimated code review effort
-${reviewEffort}
-
-### Poem
-${poem}
-
-### 📋 Review Details
-- **Files to review**: ${files.length}
-- **Total changes**: +${totalAdditions}/-${totalDeletions}
-- **Review scope**: ${files.length === 1 ? 'Single file' : 'Multiple files'}
-- **Complexity**: ${totalAdditions + totalDeletions > 100 ? 'High' : totalAdditions + totalDeletions > 30 ? 'Medium' : 'Low'}
-
----
-⏳ **AI analysis in progress...** Detailed results will be posted shortly.
-
-*Review powered by AI Code Reviewer* 🤖`;
+          const comment = `## 🔍 AI Code Review Started\\n\\n### Walkthrough\\n${walkthrough}\\n\\n### Changes\\n| File | Change Summary |\\n|------|----------------|\\n${changesTable}\\n\\n### Estimated code review effort\\n${reviewEffort}\\n\\n### Poem\\n${poem}\\n\\n### 📋 Review Details\\n- **Files to review**: ${files.length}\\n- **Total changes**: +${totalAdditions}/-${totalDeletions}\\n- **Review scope**: ${files.length === 1 ? 'Single file' : 'Multiple files'}\\n- **Complexity**: ${totalAdditions + totalDeletions > 100 ? 'High' : totalAdditions + totalDeletions > 30 ? 'Medium' : 'Low'}\\n\\n---\\n⏳ **AI analysis in progress...** Detailed results will be posted shortly.\\n\\n*Review powered by AI Code Reviewer* 🤖`;
 
           await github.rest.issues.createComment({
             issue_number: context.issue.number,
@@ -324,24 +299,7 @@ ${poem}
             const totalChanges = prFiles.reduce((sum, f) => sum + f.additions + f.deletions, 0);
 
             if (reviewData.length === 0) {
-              const comment = `## 🤖 AI Code Review Summary
-
-### 📊 Results
-✅ **No issues found!** Your code looks great.
-
-### 📋 Analysis Details
-- **Files reviewed**: ${filesReviewed}
-- **Total changes**: +${prFiles.reduce((sum, f) => sum + f.additions, 0)}/-${prFiles.reduce((sum, f) => sum + f.deletions, 0)}
-- **Code quality**: Excellent
-- **Security check**: ✅ Passed
-- **Performance impact**: None detected
-- **Best practices**: ✅ Followed
-
-### 🎯 Recommendation
-This change is safe to merge! ${totalChanges < 10 ? 'The small focused change maintains code quality.' : 'All modifications follow established patterns and best practices.'}
-
----
-*Powered by AI Code Reviewer - Keeping your code clean and secure! 🚀*`;
+              const comment = `## 🤖 AI Code Review Summary\\n\\n### 📊 Results\\n✅ **No issues found!** Your code looks great.\\n\\n### 📋 Analysis Details\\n- **Files reviewed**: ${filesReviewed}\\n- **Total changes**: +${prFiles.reduce((sum, f) => sum + f.additions, 0)}/-${prFiles.reduce((sum, f) => sum + f.deletions, 0)}\\n- **Code quality**: Excellent\\n- **Security check**: ✅ Passed\\n- **Performance impact**: None detected\\n- **Best practices**: ✅ Followed\\n\\n### 🎯 Recommendation\\nThis change is safe to merge! ${totalChanges < 10 ? 'The small focused change maintains code quality.' : 'All modifications follow established patterns and best practices.'}\\n\\n---\\n*Powered by AI Code Reviewer - Keeping your code clean and secure! 🚀*`;
 
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
@@ -443,16 +401,7 @@ This change is safe to merge! ${totalChanges < 10 ? 'The small focused change ma
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🤖 AI Code Review Summary
-
-### ⚠️ Analysis Error
-Review completed but results could not be processed.
-
-### 🔧 Troubleshooting
-Check the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for detailed error information.
-
----
-*Powered by AI Code Reviewer* 🤖`
+              body: `## 🤖 AI Code Review Summary\\n\\n### ⚠️ Analysis Error\\nReview completed but results could not be processed.\\n\\n### 🔧 Troubleshooting\\nCheck the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for detailed error information.\\n\\n---\\n*Powered by AI Code Reviewer* 🤖`
             });
           }
 

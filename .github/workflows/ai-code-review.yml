@@ -237,45 +237,15 @@ jobs:
             const isNewFeature = files.some(f => f.status === 'added' && f.additions > 20);
 
             if (isSecurityChange) {
-              return [
-                "A shield was forged in code today,",
-                "To keep the hackers all at bay.",
-                "With fixes bright,",
-                "And logic tight,",
-                "Security wins the day! 🛡️✨"
-              ].join('\\n');
+              return "A shield was forged in code today,\\nTo keep the hackers all at bay.\\nWith fixes bright,\\nAnd logic tight,\\nSecurity wins the day! 🛡️✨";
             } else if (isNewFeature) {
-              return [
-                "New features bloom like flowers in spring,",
-                "Fresh code and functions that make hearts sing.",
-                "With logic clear,",
-                "And bugs nowhere near,",
-                "Innovation is a wonderful thing! 🌸✨"
-              ].join('\\n');
+              return "New features bloom like flowers in spring,\\nFresh code and functions that make hearts sing.\\nWith logic clear,\\nAnd bugs nowhere near,\\nInnovation is a wonderful thing! 🌸✨";
             } else if (isStyleChange) {
-              return [
-                "A comma hopped out, light as can be,",
-                "From the config file, now tidy and free.",
-                "The code is more neat,",
-                "With no extra beat—",
-                "This bunny approves, with a whiskery 'Whee!' 🐰✨"
-              ].join('\\n');
+              return "A comma hopped out, light as can be,\\nFrom the config file, now tidy and free.\\nThe code is more neat,\\nWith no extra beat—\\nThis bunny approves, with a whiskery Whee! 🐰✨";
             } else if (totalChanges < 10) {
-              return [
-                "Small changes make the biggest waves,",
-                "Like gentle tweaks that improvement saves.",
-                "Though tiny in size,",
-                "They're mighty and wise,",
-                "Clean code is what every dev craves! ⚡✨"
-              ].join('\\n');
+              return "Small changes make the biggest waves,\\nLike gentle tweaks that improvement saves.\\nThough tiny in size,\\nThey're mighty and wise,\\nClean code is what every dev craves! ⚡✨";
             } else {
-              return [
-                "Code flows like a river, steady and true,",
-                "Changes ripple through, making things new.",
-                "With each commit's art,",
-                "You're playing your part,",
-                "In building something amazing for me and you! 🚀✨"
-              ].join('\\n');
+              return "Code flows like a river, steady and true,\\nChanges ripple through, making things new.\\nWith each commit's art,\\nYou're playing your part,\\nIn building something amazing for me and you! 🚀✨";
             }
           }
 
@@ -313,32 +283,7 @@ jobs:
           const reviewEffort = estimateReviewEffort(files, totalAdditions, totalDeletions);
           const poem = generateChangePoem(files, totalAdditions + totalDeletions);
 
-          const comment = `## 🔍 AI Code Review Started
-
-### Walkthrough
-${walkthrough}
-
-### Changes
-| File | Change Summary |
-|------|----------------|
-${changesTable}
-
-### Estimated code review effort
-${reviewEffort}
-
-### Poem
-${poem}
-
-### 📋 Review Details
-- **Files to review**: ${files.length}
-- **Total changes**: +${totalAdditions}/-${totalDeletions}
-- **Review scope**: ${files.length === 1 ? 'Single file' : 'Multiple files'}
-- **Complexity**: ${totalAdditions + totalDeletions > 100 ? 'High' : totalAdditions + totalDeletions > 30 ? 'Medium' : 'Low'}
-
----
-⏳ **AI analysis in progress...** Detailed results will be posted shortly.
-
-*Review powered by AI Code Reviewer* 🤖`;
+          const comment = `## 🔍 AI Code Review Started\\n\\n### Walkthrough\\n${walkthrough}\\n\\n### Changes\\n| File | Change Summary |\\n|------|----------------|\\n${changesTable}\\n\\n### Estimated code review effort\\n${reviewEffort}\\n\\n### Poem\\n${poem}\\n\\n### 📋 Review Details\\n- **Files to review**: ${files.length}\\n- **Total changes**: +${totalAdditions}/-${totalDeletions}\\n- **Review scope**: ${files.length === 1 ? 'Single file' : 'Multiple files'}\\n- **Complexity**: ${totalAdditions + totalDeletions > 100 ? 'High' : totalAdditions + totalDeletions > 30 ? 'Medium' : 'Low'}\\n\\n---\\n⏳ **AI analysis in progress...** Detailed results will be posted shortly.\\n\\n*Review powered by AI Code Reviewer* 🤖`;
 
           await github.rest.issues.createComment({
             issue_number: context.issue.number,
@@ -367,24 +312,7 @@ ${poem}
             const totalChanges = prFiles.reduce((sum, f) => sum + f.additions + f.deletions, 0);
 
             if (reviewData.length === 0) {
-              const comment = `## 🤖 AI Code Review Summary
-
-### 📊 Results
-✅ **No issues found!** Your code looks great.
-
-### 📋 Analysis Details
-- **Files reviewed**: ${filesReviewed}
-- **Total changes**: +${prFiles.reduce((sum, f) => sum + f.additions, 0)}/-${prFiles.reduce((sum, f) => sum + f.deletions, 0)}
-- **Code quality**: Excellent
-- **Security check**: ✅ Passed
-- **Performance impact**: None detected
-- **Best practices**: ✅ Followed
-
-### 🎯 Recommendation
-This change is safe to merge! ${totalChanges < 10 ? 'The small focused change maintains code quality.' : 'All modifications follow established patterns and best practices.'}
-
----
-*Powered by AI Code Reviewer - Keeping your code clean and secure! 🚀*`;
+              const comment = `## 🤖 AI Code Review Summary\\n\\n### 📊 Results\\n✅ **No issues found!** Your code looks great.\\n\\n### 📋 Analysis Details\\n- **Files reviewed**: ${filesReviewed}\\n- **Total changes**: +${prFiles.reduce((sum, f) => sum + f.additions, 0)}/-${prFiles.reduce((sum, f) => sum + f.deletions, 0)}\\n- **Code quality**: Excellent\\n- **Security check**: ✅ Passed\\n- **Performance impact**: None detected\\n- **Best practices**: ✅ Followed\\n\\n### 🎯 Recommendation\\nThis change is safe to merge! ${totalChanges < 10 ? 'The small focused change maintains code quality.' : 'All modifications follow established patterns and best practices.'}\\n\\n---\\n*Powered by AI Code Reviewer - Keeping your code clean and secure! 🚀*`;
 
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
@@ -485,19 +413,7 @@ This change is safe to merge! ${totalChanges < 10 ? 'The small focused change ma
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🤖 AI Code Review Summary
-
-### ⚠️ Analysis Error
-Review completed but results could not be processed. This might be due to:
-- No changes detected in supported file types
-- Configuration issues with the AI provider
-- Network connectivity problems
-
-### 🔧 Troubleshooting
-Check the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for detailed error information.
-
----
-*Powered by AI Code Reviewer* 🤖`
+              body: `## 🤖 AI Code Review Summary\\n\\n### ⚠️ Analysis Error\\nReview completed but results could not be processed. This might be due to:\\n- No changes detected in supported file types\\n- Configuration issues with the AI provider\\n- Network connectivity problems\\n\\n### 🔧 Troubleshooting\\nCheck the [workflow logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for detailed error information.\\n\\n---\\n*Powered by AI Code Reviewer* 🤖`
             });
           }
 
