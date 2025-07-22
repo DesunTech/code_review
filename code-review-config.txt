@@ -5,10 +5,10 @@
 review:
   # Severity threshold for failing builds
   fail_on_severity: major  # Options: critical, major, minor, info
-  
+
   # Maximum number of findings to report
   max_findings: 50
-  
+
   # Enable/disable specific review categories
   categories:
     performance: true
@@ -25,7 +25,7 @@ languages:
       - name: "Avoid mutable default arguments"
         pattern: "def .+\\(.*=\\[|def .+\\(.*=\\{"
         severity: major
-        message: "Mutable default arguments can lead to unexpected behavior"
+    ...
         
       - name: "Use context managers for file operations"
         pattern: "open\\(.+\\)(?!.*with)"
@@ -105,7 +105,7 @@ security:
       message: "MD5 and SHA1 are considered weak. Use SHA256 or stronger"
 
 # Performance rules
-performance:
+  performance:
   patterns:
     - name: "N+1 query pattern"
       pattern: "for.+in.+(\\.(find|query|select)|SELECT)"
@@ -123,7 +123,7 @@ style:
   naming:
     functions: camelCase  # or snake_case
     variables: camelCase
-    constants: UPPER_SNAKE_CASE
+    ...
     classes: PascalCase
     
   # File organization
