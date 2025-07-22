@@ -25,12 +25,27 @@ This AI-powered code review system automatically analyzes code changes to identi
 git clone <your-repo>
 cd <your-repo>
 
-# Install dependencies
-pip install aiohttp anthropic
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Unix/macOS
+venv\\Scripts\\activate  # On Windows
 
-# Set up environment variable
-export ANTHROPIC_API_KEY="your-api-key-here"
+# Install dependencies
+pip install -r requirements.txt
 ```
+
+### 2.1 Environment Setup
+
+Create a `.env` file in the project root with your API keys:
+
+```bash
+# .env.example
+ANTHROPIC_API_KEY=your_anthropic_key_here
+OPENAI_API_KEY=your_openai_key_here  # Optional for multi-provider
+OPENROUTER_API_KEY=your_openrouter_key_here  # Optional
+```
+
+Copy `.env.example` to `.env` and fill in your keys. The system will automatically load these.
 
 ### 3. Basic Usage
 
@@ -52,15 +67,26 @@ python ai_code_reviewer.py --fail-on critical
 
 ### GitHub Actions
 
-1. Add the workflow file to `.github/workflows/ai-code-review.yml`
-2. Add your API key as a repository secret:
-   - Go to Settings → Secrets → Actions
-   - Add `ANTHROPIC_API_KEY` with your API key
+To use this as a GitHub Action:
 
-3. The workflow will automatically run on:
-   - Pull requests
-   - Pushes to main/develop branches
-   - Manual triggers
+1. Copy the workflow from `github-actions-workflow.txt` to `.github/workflows/ai-code-review.yml` in your repository.
+
+2. Add your API key as a repository secret:
+   - Go to Settings → Secrets and variables → Actions
+   - Add `ANTHROPIC_API_KEY` with your API key value.
+
+3. The workflow will run automatically on pull requests and pushes to main/develop. It:
+   - Checks out code
+   - Sets up Python
+   - Installs dependencies
+   - Detects language/project type
+   - Runs the AI reviewer
+   - Uploads report
+   - Comments on PR
+   - Sets commit status
+   - Runs additional static analysis and security scans
+
+4. Customize the workflow as needed, e.g., adjust fail-on severity or add more scans.
 
 ### GitLab CI/CD
 
@@ -234,6 +260,32 @@ Focus exclusively on security vulnerabilities:
 
 reviewer = AICodeReviewer()
 reviewer.custom_prompt = security_prompt
+```
+
+### Multi-Provider Integration
+
+The system supports multiple AI providers via `multi-provider-integration.py`:
+
+- Primary: Claude (Anthropic)
+- Fallbacks: OpenAI, OpenRouter, Local models (e.g., Ollama), Custom
+
+Configure in `AI_PROVIDERS_CONFIG` JSON file or use defaults. Set API keys in .env.
+
+Example usage:
+```python
+from multi_provider_integration import MultiProviderReviewer
+
+reviewer = MultiProviderReviewer(primary_provider="claude")
+result = await reviewer.review_code(diff_content)
+```
+
+### Benchmarking Providers
+
+Benchmark providers for accuracy and speed:
+```python
+benchmark = ProviderBenchmark(['claude', 'openai'])
+await benchmark.benchmark(test_cases)
+print(benchmark.generate_report())
 ```
 
 ### Integration with Code Metrics
