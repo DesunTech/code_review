@@ -1,0 +1,239 @@
+# AI Code Review Configuration
+# This file allows you to customize the behavior of the AI code reviewer
+
+# Review settings
+review:
+  # Severity threshold for failing builds
+  fail_on_severity: major  # Options: critical, major, minor, info
+  
+  # Maximum number of findings to report
+  max_findings: 50
+  
+  # Enable/disable specific review categories
+  categories:
+    performance: true
+    security: true
+    style: true
+    logic: true
+    best_practice: true
+
+# Language-specific rules
+languages:
+  python:
+    # Python-specific checks
+    checks:
+      - name: "Avoid mutable default arguments"
+        pattern: "def .+\\(.*=\\[|def .+\\(.*=\\{"
+        severity: major
+        message: "Mutable default arguments can lead to unexpected behavior"
+        
+      - name: "Use context managers for file operations"
+        pattern: "open\\(.+\\)(?!.*with)"
+        severity: major
+        message: "Use 'with' statement for file operations to ensure proper cleanup"
+        
+      - name: "Avoid bare except"
+        pattern: "except:"
+        severity: minor
+        message: "Avoid bare except; specify exception types"
+        
+    # Complexity thresholds
+    complexity:
+      cyclomatic_complexity: 10
+      cognitive_complexity: 15
+      max_function_length: 50
+      max_file_length: 500
+
+  javascript:
+    checks:
+      - name: "Avoid var declarations"
+        pattern: "\\bvar\\s+"
+        severity: minor
+        message: "Use 'let' or 'const' instead of 'var'"
+        
+      - name: "Use strict equality"
+        pattern: "==[^=]|!=[^=]"
+        severity: minor
+        message: "Use === and !== for comparisons"
+        
+      - name: "Avoid console.log in production"
+        pattern: "console\\.(log|debug|info)"
+        severity: minor
+        message: "Remove console statements before production"
+
+  typescript:
+    checks:
+      - name: "Avoid 'any' type"
+        pattern: ":\\s*any\\b"
+        severity: major
+        message: "Avoid using 'any' type; use specific types instead"
+        
+      - name: "Use interfaces over type aliases for objects"
+        pattern: "type\\s+\\w+\\s*=\\s*\\{"
+        severity: info
+        message: "Consider using interface instead of type alias for object shapes"
+
+  go:
+    checks:
+      - name: "Check error returns"
+        pattern: "_\\s*=.*\\.(\\w+)\\("
+        severity: major
+        message: "Don't ignore error returns"
+        
+      - name: "Use defer for cleanup"
+        pattern: "\\.(Close|Unlock)\\(\\)(?!.*defer)"
+        severity: minor
+        message: "Consider using defer for cleanup operations"
+
+# Security rules (apply to all languages)
+security:
+  # Patterns to detect potential security issues
+  patterns:
+    - name: "SQL Injection"
+      pattern: "(SELECT|INSERT|UPDATE|DELETE).+\\+.+(\\w+|\\]|\\))"
+      severity: critical
+      message: "Potential SQL injection vulnerability. Use parameterized queries"
+      
+    - name: "Hardcoded secrets"
+      pattern: "(api_key|apikey|password|secret|token)\\s*=\\s*[\"'][^\"']+[\"']"
+      severity: critical
+      message: "Avoid hardcoding secrets. Use environment variables"
+      
+    - name: "Weak cryptography"
+      pattern: "(md5|sha1)\\("
+      severity: major
+      message: "MD5 and SHA1 are considered weak. Use SHA256 or stronger"
+
+# Performance rules
+performance:
+  patterns:
+    - name: "N+1 query pattern"
+      pattern: "for.+in.+(\\.(find|query|select)|SELECT)"
+      severity: major
+      message: "Potential N+1 query pattern detected"
+      
+    - name: "Inefficient string concatenation in loop"
+      pattern: "for.+\\+=\\s*[\"']"
+      severity: minor
+      message: "String concatenation in loops is inefficient"
+
+# Code style preferences
+style:
+  # Naming conventions
+  naming:
+    functions: camelCase  # or snake_case
+    variables: camelCase
+    constants: UPPER_SNAKE_CASE
+    classes: PascalCase
+    
+  # File organization
+  file_structure:
+    max_imports: 20
+    import_order: ["stdlib", "third_party", "local"]
+    
+  # Documentation requirements
+  documentation:
+    require_function_docs: true
+    require_class_docs: true
+    min_doc_length: 10
+
+# Custom rules for your team
+custom_rules:
+  - name: "TODO comments"
+    pattern: "TODO|FIXME|HACK"
+    severity: info
+    message: "Found TODO comment. Create a ticket if this is important"
+    
+  - name: "Large functions"
+    pattern: "function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]{500,}"
+    severity: minor
+    message: "Function is too large. Consider breaking it down"
+    
+  - name: "Magic numbers"
+    pattern: "\\b(if|while|for).*[^=!<>]=\\s*\\d{2,}"
+    severity: minor
+    message: "Avoid magic numbers. Use named constants"
+
+# Integration settings
+integrations:
+  # GitHub integration
+  github:
+    # Automatically approve PRs with only 'info' level findings
+    auto_approve_on_info_only: false
+    
+    # Add labels based on findings
+    labels:
+      critical: "needs-urgent-fix"
+      major: "needs-fix"
+      minor: "needs-improvement"
+      info: "suggestion"
+      
+    # Require review from specific teams for critical issues
+    require_review_for_critical: ["security-team", "senior-developers"]
+    
+  # Slack notifications
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    notify_on_severity: major  # Notify for this severity and above
+    
+  # JIRA integration
+  jira:
+    enabled: false
+    create_ticket_on_severity: critical
+    project_key: "PROJ"
+    issue_type: "Bug"
+
+# Reporting options
+reporting:
+  # Include code snippets in reports
+  include_code_snippets: true
+  
+  # Maximum snippet length
+  max_snippet_length: 200
+  
+  # Group findings by
+  group_by: file  # Options: file, severity, category
+  
+  # Report formats to generate
+  formats: ["markdown", "json", "html"]
+  
+  # Metrics to track
+  metrics:
+    - total_findings
+    - findings_by_severity
+    - findings_by_category
+    - code_coverage
+    - complexity_score
+
+# Performance settings for the reviewer
+performance:
+  # Maximum file size to review (in KB)
+  max_file_size: 500
+  
+  # Files/patterns to skip
+  skip_patterns:
+    - "*.min.js"
+    - "*.generated.*"
+    - "vendor/*"
+    - "node_modules/*"
+    - "*.lock"
+    - "*.sum"
+    
+  # Maximum diff size (in lines)
+  max_diff_lines: 5000
+  
+  # Timeout for AI review (in seconds)
+  timeout: 120
+
+# Learning and improvement
+learning:
+  # Store reviews for analysis
+  store_reviews: true
+  storage_path: ".code-reviews"
+  
+  # Learn from human feedback
+  incorporate_feedback: true
+  
+  # Track false positives
+  track_false_positives: true
