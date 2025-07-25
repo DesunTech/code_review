@@ -118,7 +118,7 @@ class OpenRouterProvider(AIProvider):
         }
 
         data = {
-            "model": self.config.model or "moonshotai/kimi-k2:free",
+            "model": self.config.model or os.getenv('OPENROUTER_MODEL') or "qwen/qwen3-235b-a22b-07-25:free",
             "messages": [
                 {"role": "system", "content": "You are an expert code reviewer."},
                 {"role": "user", "content": prompt}
@@ -298,10 +298,10 @@ class MultiProviderReviewer:
         """Create enhanced context-aware review prompt."""
         if not context:
             context = {}
-            
+
         language = context.get('language', 'unknown')
         project_type = context.get('project_type', 'general')
-        
+
         # Extract contextual information
         file_contexts = context.get('file_contexts', {})
         dependency_map = context.get('dependency_map')
@@ -309,7 +309,7 @@ class MultiProviderReviewer:
         architecture_analysis = context.get('architecture_analysis')
         breaking_changes_count = context.get('breaking_changes_count', 0)
         affected_files_count = context.get('affected_files_count', 0)
-        
+
         # Build context sections
         context_info = f"""Context:
 - Language: {language}
@@ -331,17 +331,17 @@ class MultiProviderReviewer:
         dependency_info = ""
         if dependency_map:
             dependency_info = f"\n\nDependency Analysis:"
-            
+
             if dependency_map.breaking_changes:
                 dependency_info += f"\n⚠️ POTENTIAL BREAKING CHANGES DETECTED ({len(dependency_map.breaking_changes)}):"
                 for change in dependency_map.breaking_changes[:3]:  # Show top 3
                     dependency_info += f"\n  - {change}"
-            
+
             if dependency_map.affected_files:
                 dependency_info += f"\n🔗 Files with dependents:"
                 for changed_file, dependents in list(dependency_map.affected_files.items())[:2]:
                     dependency_info += f"\n  - {changed_file} → affects {len(dependents)} files"
-            
+
             if dependency_map.changed_exports:
                 dependency_info += f"\n📤 Modified exports detected in:"
                 for file_path, exports in list(dependency_map.changed_exports.items())[:2]:
@@ -363,7 +363,7 @@ class MultiProviderReviewer:
         architecture_info = ""
         if architecture_analysis:
             architecture_info = "\n\n## 🏗️ ARCHITECTURE ANALYSIS:"
-            
+
             # Detected patterns
             if architecture_analysis.detected_patterns:
                 architecture_info += f"\n\n📐 **Detected Architecture Patterns:**"
@@ -373,33 +373,33 @@ class MultiProviderReviewer:
                     architecture_info += f"\n    {pattern.description}"
                     if pattern.evidence:
                         architecture_info += f"\n    Evidence: {', '.join(pattern.evidence[:2])}"
-            
+
             # Project structure
             if architecture_analysis.project_structure:
                 architecture_info += f"\n\n📁 **Project Structure:**"
                 for layer, files in list(architecture_analysis.project_structure.items())[:4]:
                     file_count = len(files)
                     architecture_info += f"\n  - {layer}: {file_count} files"
-            
+
             # Tech stack
             if architecture_analysis.tech_stack:
                 architecture_info += f"\n\n⚡ **Technology Stack:**"
                 for category, technologies in list(architecture_analysis.tech_stack.items())[:3]:
                     if technologies:
                         architecture_info += f"\n  - {category}: {', '.join(technologies[:3])}"
-            
+
             # Design issues
             if architecture_analysis.design_issues:
                 architecture_info += f"\n\n⚠️ **ARCHITECTURAL CONCERNS ({len(architecture_analysis.design_issues)} detected):**"
                 for issue in architecture_analysis.design_issues[:3]:  # Show top 3
                     architecture_info += f"\n  - {issue}"
-            
+
             # Recommendations
             if architecture_analysis.recommendations:
                 architecture_info += f"\n\n💡 **ARCHITECTURE RECOMMENDATIONS:**"
                 for i, rec in enumerate(architecture_analysis.recommendations[:4], 1):
                     architecture_info += f"\n  {i}. {rec}"
-            
+
             # Complexity metrics
             if architecture_analysis.complexity_metrics:
                 metrics = architecture_analysis.complexity_metrics
@@ -419,7 +419,7 @@ class MultiProviderReviewer:
 
 ### 🚨 CRITICAL PRIORITIES:
 - **Architecture Compliance**: Ensure changes align with detected architectural patterns
-- **Breaking Changes**: Analyze impact on dependent files and API consumers  
+- **Breaking Changes**: Analyze impact on dependent files and API consumers
 - **Cross-file Dependencies**: Consider how changes affect imports and exports
 - **Design Issues**: Address architectural concerns mentioned above
 - **Pattern Consistency**: Maintain consistency with established project patterns
@@ -431,7 +431,7 @@ class MultiProviderReviewer:
 
 ### ⚡ Performance (Context-Aware):
 - Algorithm efficiency relative to data patterns
-- Memory usage considering file size and imports  
+- Memory usage considering file size and imports
 - Database queries (N+1, missing indexes, inefficient joins)
 - Bundle size impact for frontend changes
 
@@ -499,7 +499,7 @@ Respond with a JSON array of findings. Each finding MUST have these fields:
 - "category": specific category (e.g., "security", "performance", "logic", "breaking-change", "architecture", "design-pattern", "tech-stack")
 - "file": filename from the diff
 - "line_start": starting line number
-- "line_end": ending line number  
+- "line_end": ending line number
 - "message": clear description considering context and dependencies
 - "suggestion": actionable fix suggestion with implementation steps
 - "fixed_code": COMPLETE corrected code snippet that can be directly used (minimum 5-10 lines for meaningful fixes)
@@ -544,11 +544,11 @@ Provide thorough, context-aware reviews that help developers understand both imm
         # - Code typically has more tokens per character than prose
         # - Account for special characters and syntax
         base_tokens = len(text) // 3.5  # Slightly more tokens for code
-        
+
         # Add tokens for special patterns in code
         code_patterns = text.count('{') + text.count('}') + text.count('(') + text.count(')')
         syntax_tokens = code_patterns * 0.5
-        
+
         return int(base_tokens + syntax_tokens)
 
     def _filter_important_files(self, diff_content: str, max_files: int = 20) -> str:
