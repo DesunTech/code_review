@@ -295,63 +295,242 @@ class MultiProviderReviewer:
                 print(f"✗ Failed to load provider {provider_name}: {e}")
 
     def _create_prompt(self, diff_content: str, context: Dict[str, Any] = None) -> str:
-        """Create review prompt."""
-        language = context.get('language', 'unknown') if context else 'unknown'
-        project_type = context.get('project_type', 'general') if context else 'general'
-
-        return f"""You are an expert code reviewer. Review this code diff and provide detailed findings with actionable fixes in JSON format.
-
-Context:
+        """Create enhanced context-aware review prompt."""
+        if not context:
+            context = {}
+            
+        language = context.get('language', 'unknown')
+        project_type = context.get('project_type', 'general')
+        
+        # Extract contextual information
+        file_contexts = context.get('file_contexts', {})
+        dependency_map = context.get('dependency_map')
+        hunks = context.get('hunks', [])
+        architecture_analysis = context.get('architecture_analysis')
+        breaking_changes_count = context.get('breaking_changes_count', 0)
+        affected_files_count = context.get('affected_files_count', 0)
+        
+        # Build context sections
+        context_info = f"""Context:
 - Language: {language}
 - Project Type: {project_type}
+- Files Changed: {context.get('changed_files_count', 'unknown')}
+- Code Hunks: {context.get('total_hunks', 'unknown')}"""
 
-Focus Areas:
-- 🔒 Security vulnerabilities (SQL injection, XSS, hardcoded secrets, etc.)
-- ⚡ Performance issues (inefficient algorithms, memory leaks, N+1 queries)
-- 🐛 Logic errors and potential bugs
-- 📏 Code quality and best practices
-- 🏗️ Architecture and design patterns
-- 🧪 Testing and error handling
-- 📖 Documentation and maintainability
+        # Add file context information
+        if file_contexts:
+            context_info += "\n\nFile Context Analysis:"
+            for file_path, file_ctx in list(file_contexts.items())[:3]:  # Limit to avoid overwhelming
+                context_info += f"""
+📄 {file_path} ({file_ctx.language}, {file_ctx.total_lines} lines):
+  - Imports: {', '.join(file_ctx.imports[:5]) if file_ctx.imports else 'None'}
+  - Functions: {', '.join(file_ctx.functions[:5]) if file_ctx.functions else 'None'}
+  - Classes: {', '.join(file_ctx.classes[:3]) if file_ctx.classes else 'None'}"""
 
-Code diff to review:
+        # Add dependency analysis
+        dependency_info = ""
+        if dependency_map:
+            dependency_info = f"\n\nDependency Analysis:"
+            
+            if dependency_map.breaking_changes:
+                dependency_info += f"\n⚠️ POTENTIAL BREAKING CHANGES DETECTED ({len(dependency_map.breaking_changes)}):"
+                for change in dependency_map.breaking_changes[:3]:  # Show top 3
+                    dependency_info += f"\n  - {change}"
+            
+            if dependency_map.affected_files:
+                dependency_info += f"\n🔗 Files with dependents:"
+                for changed_file, dependents in list(dependency_map.affected_files.items())[:2]:
+                    dependency_info += f"\n  - {changed_file} → affects {len(dependents)} files"
+            
+            if dependency_map.changed_exports:
+                dependency_info += f"\n📤 Modified exports detected in:"
+                for file_path, exports in list(dependency_map.changed_exports.items())[:2]:
+                    dependency_info += f"\n  - {file_path}: {', '.join(exports[:3])}"
+
+        # Add surrounding context for key changes
+        context_code = ""
+        if hunks:
+            context_code = "\n\nCode Context (surrounding lines):"
+            for i, hunk in enumerate(hunks[:2]):  # Show context for first 2 hunks
+                if hunk.context_before or hunk.context_after:
+                    context_code += f"\n\n📍 {hunk.file_path} (lines {hunk.new_start}-{hunk.new_start + hunk.new_count}):"
+                    if hunk.context_before:
+                        context_code += f"\nBefore change:\n```\n" + '\n'.join(hunk.context_before[-3:]) + "\n```"
+                    if hunk.context_after:
+                        context_code += f"\nAfter change:\n```\n" + '\n'.join(hunk.context_after[:3]) + "\n```"
+
+        # Add architecture analysis
+        architecture_info = ""
+        if architecture_analysis:
+            architecture_info = "\n\n## 🏗️ ARCHITECTURE ANALYSIS:"
+            
+            # Detected patterns
+            if architecture_analysis.detected_patterns:
+                architecture_info += f"\n\n📐 **Detected Architecture Patterns:**"
+                for pattern in architecture_analysis.detected_patterns[:3]:  # Show top 3
+                    confidence_emoji = "🎯" if pattern.confidence > 0.8 else "🤔" if pattern.confidence > 0.5 else "❓"
+                    architecture_info += f"\n  - {confidence_emoji} **{pattern.pattern_type}** ({pattern.confidence:.1%} confidence)"
+                    architecture_info += f"\n    {pattern.description}"
+                    if pattern.evidence:
+                        architecture_info += f"\n    Evidence: {', '.join(pattern.evidence[:2])}"
+            
+            # Project structure
+            if architecture_analysis.project_structure:
+                architecture_info += f"\n\n📁 **Project Structure:**"
+                for layer, files in list(architecture_analysis.project_structure.items())[:4]:
+                    file_count = len(files)
+                    architecture_info += f"\n  - {layer}: {file_count} files"
+            
+            # Tech stack
+            if architecture_analysis.tech_stack:
+                architecture_info += f"\n\n⚡ **Technology Stack:**"
+                for category, technologies in list(architecture_analysis.tech_stack.items())[:3]:
+                    if technologies:
+                        architecture_info += f"\n  - {category}: {', '.join(technologies[:3])}"
+            
+            # Design issues
+            if architecture_analysis.design_issues:
+                architecture_info += f"\n\n⚠️ **ARCHITECTURAL CONCERNS ({len(architecture_analysis.design_issues)} detected):**"
+                for issue in architecture_analysis.design_issues[:3]:  # Show top 3
+                    architecture_info += f"\n  - {issue}"
+            
+            # Recommendations
+            if architecture_analysis.recommendations:
+                architecture_info += f"\n\n💡 **ARCHITECTURE RECOMMENDATIONS:**"
+                for i, rec in enumerate(architecture_analysis.recommendations[:4], 1):
+                    architecture_info += f"\n  {i}. {rec}"
+            
+            # Complexity metrics
+            if architecture_analysis.complexity_metrics:
+                metrics = architecture_analysis.complexity_metrics
+                architecture_info += f"\n\n📊 **Complexity Metrics:**"
+                if metrics.get('total_files'):
+                    architecture_info += f"\n  - Total Files: {int(metrics['total_files'])}"
+                if metrics.get('avg_file_size'):
+                    architecture_info += f"\n  - Avg File Size: {int(metrics['avg_file_size'])} lines"
+                if metrics.get('code_to_config_ratio'):
+                    architecture_info += f"\n  - Code/Config Ratio: {metrics['code_to_config_ratio']:.1f}"
+
+        return f"""You are an expert code reviewer with deep understanding of software architecture and cross-file dependencies. Review this code diff with enhanced contextual awareness and provide detailed findings with actionable fixes in JSON format.
+
+{context_info}{dependency_info}{context_code}{architecture_info}
+
+## ENHANCED FOCUS AREAS:
+
+### 🚨 CRITICAL PRIORITIES:
+- **Architecture Compliance**: Ensure changes align with detected architectural patterns
+- **Breaking Changes**: Analyze impact on dependent files and API consumers  
+- **Cross-file Dependencies**: Consider how changes affect imports and exports
+- **Design Issues**: Address architectural concerns mentioned above
+- **Pattern Consistency**: Maintain consistency with established project patterns
+
+### 🔒 Security (High Priority):
+- SQL injection, XSS, hardcoded secrets, authentication bypasses
+- Input validation, authorization checks, data exposure
+- Crypto implementation, session management
+
+### ⚡ Performance (Context-Aware):
+- Algorithm efficiency relative to data patterns
+- Memory usage considering file size and imports  
+- Database queries (N+1, missing indexes, inefficient joins)
+- Bundle size impact for frontend changes
+
+### 🐛 Logic & Correctness:
+- Business logic errors, edge cases, race conditions
+- Null pointer exceptions, array bounds, type mismatches
+- Error handling gaps, resource cleanup
+
+### 📏 Code Quality & Maintainability:
+- Consistency with existing codebase patterns
+- Proper abstractions, separation of concerns
+- Code duplication, complex conditionals
+- Documentation completeness
+
+### 🧪 Testing & Reliability:
+- Missing test coverage for changed functionality
+- Testing patterns consistency
+- Error boundary implementation
+
+## Code diff to review:
 ```diff
 {diff_content}
 ```
 
-**IMPORTANT**: For each finding, provide both a description AND a concrete code fix.
+## ENHANCED ANALYSIS INSTRUCTIONS:
+
+1. **Architecture-Aware Analysis**: Consider the detected architectural patterns:
+   - Ensure changes follow the established architectural style
+   - Identify violations of architectural principles
+   - Suggest improvements that enhance architectural integrity
+
+2. **Context-Aware Severity**: Weight issues based on:
+   - Function visibility (public exports vs private functions)
+   - File importance (core modules vs utilities)
+   - Breaking change potential
+   - Impact on architectural concerns
+
+3. **Cross-File Impact Analysis**: For each finding, consider:
+   - How many files depend on this change
+   - Whether the change breaks existing contracts
+   - Migration complexity for dependents
+   - Architectural ripple effects
+
+4. **Pattern Consistency**: Ensure suggestions align with:
+   - Detected architectural patterns (MVC, Clean Architecture, etc.)
+   - Existing code patterns in the file context
+   - Import/export conventions used in the project
+   - Technology stack conventions
+
+5. **Design Issue Integration**: Address architectural concerns:
+   - Reference specific design issues identified in the analysis
+   - Provide solutions that align with architecture recommendations
+   - Consider complexity metrics when suggesting refactoring
+
+**IMPORTANT**: For each finding, provide both a description AND a concrete code fix that considers the surrounding context.
 
 Respond with a JSON array of findings. Each finding MUST have these fields:
-- "severity": "critical" | "major" | "minor" | "info"
-- "category": specific category (e.g., "security", "performance", "logic", "best practices")
+- "severity": "critical" | "major" | "minor" | "info" (context-weighted)
+- "category": specific category (e.g., "security", "performance", "logic", "breaking-change", "architecture", "design-pattern", "tech-stack")
 - "file": filename from the diff
 - "line_start": starting line number
-- "line_end": ending line number
-- "message": clear description of the issue
-- "suggestion": actionable fix suggestion
-- "fixed_code": the corrected code snippet (when applicable)
-- "impact": potential impact if not fixed
+- "line_end": ending line number  
+- "message": clear description considering context and dependencies
+- "suggestion": actionable fix suggestion that fits the codebase patterns
+- "fixed_code": the corrected code snippet respecting existing conventions
+- "impact": potential impact including cross-file effects
 - "confidence": your confidence level (high/medium/low)
 
-Example format:
+Example enhanced format:
 ```json
 [
   {{
     "severity": "critical",
-    "category": "security",
-    "file": "auth.js",
+    "category": "breaking-change",
+    "file": "auth.js", 
     "line_start": 23,
-    "line_end": 23,
-    "message": "SQL injection vulnerability detected",
-    "suggestion": "Use parameterized queries instead of string concatenation",
-    "fixed_code": "const query = 'SELECT * FROM users WHERE id = ?';\\ndb.query(query, [userId]);",
-    "impact": "Attackers could access or modify database data",
+    "line_end": 25,
+    "message": "Function signature change in exported 'validateUser' function will break 3 dependent files",
+    "suggestion": "Maintain backward compatibility by adding default parameters or creating overload",
+    "fixed_code": "export function validateUser(userData, options = {{}}) {{\\n  // Maintain existing behavior while supporting new options\\n  return existing_logic;\\n}}",
+    "impact": "Breaking change affecting user-service.js, admin-panel.js, and login-component.js",
+    "confidence": "high"
+  }},
+  {{
+    "severity": "major",
+    "category": "architecture",
+    "file": "user-controller.js",
+    "line_start": 45,
+    "line_end": 52,
+    "message": "Direct database query in controller violates MVC pattern detected in this project",
+    "suggestion": "Move database logic to model layer to maintain proper separation of concerns",
+    "fixed_code": "// Controller should delegate to model\\nconst users = await UserModel.findActiveUsers();",
+    "impact": "Violates established MVC architecture, makes code harder to test and maintain",
     "confidence": "high"
   }}
 ]
 ```
 
-Provide thorough, actionable reviews that help developers improve their code quality and security."""
+Provide thorough, context-aware reviews that help developers understand both immediate fixes and broader architectural implications."""
 
     def _estimate_tokens(self, text: str) -> int:
         """Estimate token count for text (rough approximation)."""
