@@ -118,9 +118,9 @@ class OpenRouterProvider(AIProvider):
         }
 
         data = {
-            "model": self.config.model or os.getenv('OPENROUTER_MODEL') or "anthropic/claude-3.5-sonnet",
+            "model": self.config.model or os.getenv('OPENROUTER_MODEL') or "openai/gpt-4o-mini",
             "messages": [
-                {"role": "system", "content": "You are an expert code reviewer."},
+                {"role": "system", "content": "You are an expert code reviewer. You MUST respond with valid JSON only. No additional text, no markdown formatting, just clean JSON array."},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": self.config.max_tokens,

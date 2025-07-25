@@ -198,14 +198,30 @@ class AICodeReviewer:
             return []
 
     def _parse_review_response(self, response_text: str) -> List[CodeReview]:
-        """Parse the AI response into CodeReview objects."""
+        """Parse the AI response into CodeReview objects with robust error handling."""
         try:
-            # Clean the response text
+            # Clean the response text more aggressively
             response_text = response_text.strip()
+            
+            # Remove common markdown formatting
             if response_text.startswith('```json'):
                 response_text = response_text[7:]
+            if response_text.startswith('```'):
+                response_text = response_text[3:]
             if response_text.endswith('```'):
                 response_text = response_text[:-3]
+                
+            # Remove any leading/trailing text before/after JSON
+            start_idx = response_text.find('[')
+            end_idx = response_text.rfind(']')
+            
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                response_text = response_text[start_idx:end_idx + 1]
+            
+            # Additional cleaning for common issues
+            response_text = response_text.replace('\n', ' ').replace('\r', ' ')
+            # Fix common JSON formatting issues
+            response_text = response_text.replace('",}', '"}').replace(',]', ']')
 
             findings = json.loads(response_text.strip())
 
@@ -229,8 +245,38 @@ class AICodeReviewer:
 
             return reviews
         except json.JSONDecodeError as e:
-            print(f"Failed to parse AI response: {e}")
-            print(f"Response was: {response_text[:500]}...")
+            print(f"❌ Failed to parse AI response: {e}")
+            print(f"📝 Raw response preview: {response_text[:200]}...")
+            
+            # Try to extract any useful information as a fallback
+            fallback_reviews = self._create_fallback_review(response_text)
+            if fallback_reviews:
+                print("🔄 Using fallback parsing...")
+                return fallback_reviews
+            
+            return []
+        except Exception as e:
+            print(f"❌ Unexpected error parsing response: {e}")
+            return []
+    
+    def _create_fallback_review(self, response_text: str) -> List[CodeReview]:
+        """Create a basic review from malformed response."""
+        try:
+            # If we can't parse JSON, create a simple review noting the parsing failure
+            return [CodeReview(
+                severity="info",
+                category="system",
+                file="unknown",
+                line_start=1,
+                line_end=1,
+                message="AI model returned malformed response - please try again or switch models",
+                suggestion="Consider using a different AI model or reducing diff complexity",
+                code_snippet="",
+                fixed_code="",
+                impact="Unable to analyze code due to parsing issues",
+                confidence="low"
+            )]
+        except:
             return []
 
 class GitIntegration:
