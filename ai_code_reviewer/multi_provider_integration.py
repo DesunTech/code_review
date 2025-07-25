@@ -118,7 +118,7 @@ class OpenRouterProvider(AIProvider):
         }
 
         data = {
-            "model": self.config.model or os.getenv('OPENROUTER_MODEL') or "qwen/qwen3-235b-a22b-07-25:free",
+            "model": self.config.model or os.getenv('OPENROUTER_MODEL') or "anthropic/claude-3.5-sonnet",
             "messages": [
                 {"role": "system", "content": "You are an expert code reviewer."},
                 {"role": "user", "content": prompt}
