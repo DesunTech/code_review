@@ -1343,18 +1343,40 @@ class CodeQualityEnforcer:
 
             if review.suggestion:
                 report.append(f"💡 **Suggestion:** {review.suggestion}")
+                
+            # Add architecture cross-reference for architecture-related issues
+            if review.category in ['architecture', 'design-pattern'] and architecture_analysis and architecture_analysis.detected_patterns:
+                related_patterns = [p.pattern_type for p in architecture_analysis.detected_patterns]
+                if related_patterns:
+                    report.append(f"🏗️ **Architecture Context:** This relates to the detected {', '.join(related_patterns)} pattern(s) in your project.")
 
             if review.code_snippet:
                 report.append(f"\n**❌ Current Code:**")
-                report.append(f"```")
+                # Detect language from file extension for better syntax highlighting
+                file_ext = review.file.split('.')[-1] if '.' in review.file else ''
+                lang_map = {'tsx': 'typescript', 'ts': 'typescript', 'js': 'javascript', 'jsx': 'javascript', 'py': 'python', 'java': 'java', 'go': 'go'}
+                lang = lang_map.get(file_ext, '')
+                report.append(f"```{lang}")
                 report.append(f"{review.code_snippet}")
                 report.append(f"```")
 
             if review.fixed_code:
                 report.append(f"\n**✅ Fixed Code:**")
-                report.append(f"```")
+                # Use same language detection for fixed code
+                file_ext = review.file.split('.')[-1] if '.' in review.file else ''
+                lang_map = {'tsx': 'typescript', 'ts': 'typescript', 'js': 'javascript', 'jsx': 'javascript', 'py': 'python', 'java': 'java', 'go': 'go'}
+                lang = lang_map.get(file_ext, '')
+                report.append(f"```{lang}")
                 report.append(f"{review.fixed_code}")
                 report.append(f"```")
+                
+                # Add implementation steps if this is an architecture fix
+                if review.category in ['architecture', 'design-pattern']:
+                    report.append(f"\n**🔧 Implementation Steps:**")
+                    report.append(f"1. Create the refactored component/function as shown above")
+                    report.append(f"2. Update imports in dependent files if needed")
+                    report.append(f"3. Test the changes to ensure functionality is preserved")
+                    report.append(f"4. Consider updating related documentation")
 
             if review.confidence:
                 report.append(f"\n🎯 **Confidence Level:** {review.confidence}")

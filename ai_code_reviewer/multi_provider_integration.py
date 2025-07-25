@@ -458,10 +458,11 @@ class MultiProviderReviewer:
 
 ## ENHANCED ANALYSIS INSTRUCTIONS:
 
-1. **Architecture-Aware Analysis**: Consider the detected architectural patterns:
-   - Ensure changes follow the established architectural style
-   - Identify violations of architectural principles
-   - Suggest improvements that enhance architectural integrity
+1. **Architecture-Aware Analysis**: For EVERY finding, explicitly consider:
+   - Which detected architectural pattern(s) this relates to
+   - How the issue violates or supports the established architectural style
+   - Specific architectural principles being violated (e.g., "violates Clean Architecture dependency rule")
+   - Reference the exact pattern name in your message (e.g., "detected MVC pattern", "established Component-Based Frontend pattern")
 
 2. **Context-Aware Severity**: Weight issues based on:
    - Function visibility (public exports vs private functions)
@@ -486,7 +487,12 @@ class MultiProviderReviewer:
    - Provide solutions that align with architecture recommendations
    - Consider complexity metrics when suggesting refactoring
 
-**IMPORTANT**: For each finding, provide both a description AND a concrete code fix that considers the surrounding context.
+**CRITICAL REQUIREMENTS FOR EACH FINDING:**
+
+1. **Complete Fixed Code**: Always provide COMPLETE, working code snippets that can be directly copied
+2. **Architecture Context**: Reference the detected architectural patterns when relevant
+3. **Specific Solutions**: Give concrete implementation details, not just generic advice
+4. **Cross-File Awareness**: Consider how changes affect other files and imports
 
 Respond with a JSON array of findings. Each finding MUST have these fields:
 - "severity": "critical" | "major" | "minor" | "info" (context-weighted)
@@ -495,36 +501,36 @@ Respond with a JSON array of findings. Each finding MUST have these fields:
 - "line_start": starting line number
 - "line_end": ending line number  
 - "message": clear description considering context and dependencies
-- "suggestion": actionable fix suggestion that fits the codebase patterns
-- "fixed_code": the corrected code snippet respecting existing conventions
-- "impact": potential impact including cross-file effects
+- "suggestion": actionable fix suggestion with implementation steps
+- "fixed_code": COMPLETE corrected code snippet that can be directly used (minimum 5-10 lines for meaningful fixes)
+- "impact": potential impact including cross-file effects and architectural improvements
 - "confidence": your confidence level (high/medium/low)
 
 Example enhanced format:
 ```json
 [
   {{
-    "severity": "critical",
-    "category": "breaking-change",
-    "file": "auth.js", 
-    "line_start": 23,
-    "line_end": 25,
-    "message": "Function signature change in exported 'validateUser' function will break 3 dependent files",
-    "suggestion": "Maintain backward compatibility by adding default parameters or creating overload",
-    "fixed_code": "export function validateUser(userData, options = {{}}) {{\\n  // Maintain existing behavior while supporting new options\\n  return existing_logic;\\n}}",
-    "impact": "Breaking change affecting user-service.js, admin-panel.js, and login-component.js",
+    "severity": "major",
+    "category": "architecture",
+    "file": "SplashScreen.tsx",
+    "line_start": 1,
+    "line_end": 35,
+    "message": "Component directly accessing global state violates Clean Architecture pattern detected in this project. State access should be abstracted through a dedicated layer.",
+    "suggestion": "Create a custom hook to encapsulate state management logic and maintain clean architecture separation of concerns. This follows the detected Component-Based Frontend pattern while adhering to clean architecture principles.",
+    "fixed_code": "// Create custom hook for theme management\\nconst useTheme = () => {{\\n  const themeColors = useSelector((state: RootState) => state.themeReducer.colors);\\n  return {{ themeColors }};\\n}};\\n\\nexport default function SplashScreen() {{\\n  const {{ themeColors }} = useTheme();\\n  \\n  return (\\n    <View style={{[styles.container, {{ backgroundColor: themeColors.splash }}]}}>\\n      <Image\\n        source={{require('../../../assets/images/desunacademy.png')}}\\n        style={{styles.logo}}\\n        resizeMode=\\"contain\\"\\n      />\\n    </View>\\n  );\\n}}",
+    "impact": "Improves maintainability and adherence to clean architecture by separating concerns. Makes component more testable and reduces coupling to global state structure.",
     "confidence": "high"
   }},
   {{
-    "severity": "major",
-    "category": "architecture",
-    "file": "user-controller.js",
-    "line_start": 45,
-    "line_end": 52,
-    "message": "Direct database query in controller violates MVC pattern detected in this project",
-    "suggestion": "Move database logic to model layer to maintain proper separation of concerns",
-    "fixed_code": "// Controller should delegate to model\\nconst users = await UserModel.findActiveUsers();",
-    "impact": "Violates established MVC architecture, makes code harder to test and maintain",
+    "severity": "critical",
+    "category": "breaking-change",
+    "file": "asyncStorage.ts",
+    "line_start": 6,
+    "line_end": 11,
+    "message": "Changes to data retrieval logic in shared utility may break existing functionality across multiple components",
+    "suggestion": "Maintain backward compatibility by preserving existing interface while adding new functionality. Consider versioning the API or providing migration path.",
+    "fixed_code": "// Maintain backward compatibility\\nlet rawData = await AsyncStorage.getItem(STORAGE_KEY);\\nif (rawData === null) {{\\n  // Handle legacy behavior\\n  return null;\\n}}\\n\\n// New enhanced logic while preserving interface\\nconst parsedData = JSON.parse(rawData);\\nreturn parsedData;",
+    "impact": "Breaking change affecting multiple components that depend on this utility. Proper migration ensures system stability.",
     "confidence": "high"
   }}
 ]
@@ -533,9 +539,17 @@ Example enhanced format:
 Provide thorough, context-aware reviews that help developers understand both immediate fixes and broader architectural implications."""
 
     def _estimate_tokens(self, text: str) -> int:
-        """Estimate token count for text (rough approximation)."""
-        # Rough token estimation: ~1 token per 4 characters
-        return len(text) // 4
+        """Estimate token count for text (improved approximation)."""
+        # More accurate token estimation considering:
+        # - Code typically has more tokens per character than prose
+        # - Account for special characters and syntax
+        base_tokens = len(text) // 3.5  # Slightly more tokens for code
+        
+        # Add tokens for special patterns in code
+        code_patterns = text.count('{') + text.count('}') + text.count('(') + text.count(')')
+        syntax_tokens = code_patterns * 0.5
+        
+        return int(base_tokens + syntax_tokens)
 
     def _filter_important_files(self, diff_content: str, max_files: int = 20) -> str:
         """Filter diff to include only the most important files for review."""
