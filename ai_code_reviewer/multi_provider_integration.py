@@ -269,12 +269,12 @@ class MultiProviderReviewer:
                     'max_tokens': 4000
                 },
                 'openai': {
-                    'model': 'gpt-4-turbo-preview',
+                    'model': 'gpt-4o-mini',
                     'max_tokens': 4000
                 },
                 'openrouter': {
                     'endpoint': 'https://openrouter.ai/api/v1/chat/completions',
-                    'model': 'openai/gpt-4-turbo-preview',
+                    'model': 'moonshotai/kimi-k2:free',
                     'max_tokens': 4000
                 },
                 'local': {
