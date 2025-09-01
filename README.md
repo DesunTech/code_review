@@ -91,3 +91,5 @@ Fork, create branch, add tests, submit PR. See setup-guide.md for more.
 | Pending   | Add metrics dashboard for tracking findings                          | Low     |
 | Pending   | Document contribution guidelines in README.md                        | Low     |
 | Pending   | Audit for security (e.g., data leakage prevention)                   | Low     |
+
+<!-- Security scan triggered at 2025-09-01 23:10:28 -->
